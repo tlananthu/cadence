@@ -525,6 +525,16 @@
   }
 
   /* Rich text toolbar for Notes */
+  
+  .import-notes-box {
+    background: var(--surface-2);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+  }
+
   .rte-toolbar {
     display: flex;
     gap: 6px;
@@ -1537,7 +1547,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.6</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.7</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1574,7 +1584,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.6 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.7 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -4544,7 +4554,10 @@ function renderNotes(el) {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
       <p class="helper-banner" style="margin:0;">Capture meeting notes, ideas, or instructions. Link notes to a project, a task, or keep them standalone.</p>
-      <button class="btn btn-primary" onclick="openNoteModal()">+ New Note</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" onclick="openImportNotesModal()" title="Import external JSON notes without replacing existing data">⬆️ Import JSON</button>
+        <button class="btn btn-primary" onclick="openNoteModal()">+ New Note</button>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -4698,6 +4711,140 @@ function deleteNote(id) {
   render();
   showToast('Note deleted');
 }
+
+function openImportNotesModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3>⬆️ Import Notes from JSON (Merge)</h3>
+      <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
+    </div>
+    <p class="field-hint" style="margin-bottom:10px;">
+      Appends external JSON notes into <strong>Cadence</strong> without clearing your existing projects, tasks, time entries, or notes.
+      Accepts a JSON array of note objects or an object containing a <code>notes</code> array.
+    </p>
+    <div class="import-notes-box">
+      <strong>Supported input shapes:</strong> <code>[{ "title": "...", "body": "...", "tags": ["..."] }]</code> or <code>{ "notes": [...] }</code>.<br/>
+      <strong>Field mapping:</strong> <code>title</code>/<code>name</code>/<code>subject</code> → Title; <code>body</code>/<code>content</code>/<code>text</code>/<code>markdown</code>/<code>note</code> → Body (plain text/newlines converted to clean HTML); <code>tags</code>/<code>labels</code> → Tags array; <code>createdAt</code>/<code>date</code>/<code>created</code> → ISO timestamp; optional <code>projectId</code>/<code>taskId</code> matched if present.
+    </div>
+    <form onsubmit="executeImportNotesForm(event)">
+      <div class="form-group">
+        <label>Select JSON File (optional)</label>
+        <input type="file" id="notesJsonFile" accept=".json,application/json" onchange="loadNotesJsonFilePreview(event)" />
+      </div>
+      <div class="form-group">
+        <label>Or Paste JSON Directly *</label>
+        <textarea id="notesJsonRaw" required style="min-height:150px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;" placeholder='[
+  {
+    "title": "Architecture Decision",
+    "content": "Line 1\nLine 2",
+    "tags": ["arch", "notes"]
+  }
+]'></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Merge Notes into Cadence</button>
+      </div>
+    </form>
+  `);
+}
+
+function loadNotesJsonFilePreview(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const ta = document.getElementById('notesJsonRaw');
+    if (ta) ta.value = e.target.result || '';
+  };
+  reader.readAsText(file);
+}
+
+function normalizeExternalNoteToCadence(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const rawTitle = raw.title ?? raw.name ?? raw.subject ?? raw.heading ?? '';
+  const rawBody = raw.body ?? raw.content ?? raw.text ?? raw.markdown ?? raw.note ?? raw.description ?? '';
+
+  const title = String(rawTitle || '').trim() || 'Imported Note';
+  let bodyStr = String(rawBody || '').trim();
+  if (!bodyStr) return null;
+
+  // Convert plain text / newlines to HTML paragraphs/breaks if not already containing HTML tags
+  if (!/<[a-z][\s\S]*>/i.test(bodyStr)) {
+    bodyStr = bodyStr
+      .split(/\n{2,}/)
+      .map(para => `<p>${esc(para).replace(/\n/g, '<br>')}</p>`)
+      .join('');
+  }
+  const cleanBody = sanitizeNoteHtml(bodyStr);
+
+  let tags = [];
+  if (Array.isArray(raw.tags)) {
+    tags = raw.tags.map(x => String(x || '').trim()).filter(Boolean);
+  } else if (Array.isArray(raw.labels)) {
+    tags = raw.labels.map(x => String(x || '').trim()).filter(Boolean);
+  } else if (typeof raw.tags === 'string') {
+    tags = raw.tags.split(',').map(x => x.trim()).filter(Boolean);
+  }
+
+  const rawDate = raw.createdAt ?? raw.created_at ?? raw.date ?? raw.created ?? '';
+  let createdAt = new Date().toISOString();
+  if (rawDate) {
+    const parsedDt = new Date(rawDate);
+    if (!Number.isNaN(parsedDt.getTime())) createdAt = parsedDt.toISOString();
+  }
+
+  const projectId = (raw.projectId && state.projects.some(p => p.id === raw.projectId)) ? raw.projectId : '';
+  const taskId = (raw.taskId && state.tasks.some(t => t.id === raw.taskId)) ? raw.taskId : '';
+
+  return {
+    id: uid('note'),
+    title,
+    body: cleanBody,
+    projectId,
+    taskId,
+    tags,
+    createdAt
+  };
+}
+
+function executeImportNotesForm(e) {
+  e.preventDefault();
+  const rawText = (document.getElementById('notesJsonRaw')?.value || '').trim();
+  if (!rawText) return;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (err) {
+    alert('Invalid JSON syntax. Please check the file or pasted text and try again.');
+    return;
+  }
+
+  const list = Array.isArray(parsed)
+    ? parsed
+    : (Array.isArray(parsed?.notes) ? parsed.notes : null);
+
+  if (!list) {
+    alert('Expected a JSON array of notes [...] or an object with a "notes": [...] array.');
+    return;
+  }
+
+  const normalized = list.map(normalizeExternalNoteToCadence).filter(Boolean);
+  if (normalized.length === 0) {
+    alert('No valid notes with body/content text were found in the JSON.');
+    return;
+  }
+
+  if (!Array.isArray(state.notes)) state.notes = [];
+  // Append/prepend without touching projects, tasks, timeEntries, settings, or existing notes
+  state.notes = [...normalized, ...state.notes];
+  saveState();
+  closeModal();
+  render();
+  showToast(`Imported ${normalized.length} note${normalized.length > 1 ? 's' : ''} (existing data preserved)`);
+}
+
 
 // ===================== 5. TIME TRACKER VIEW =====================
 function renderTimeTracker(el) {
@@ -7900,7 +8047,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.6';
+const CADENCE_VERSION = 'v1.7';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
