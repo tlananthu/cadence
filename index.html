@@ -1395,24 +1395,58 @@
     font-size: 0.74rem;
     color: var(--text-muted);
   }
-  .assignee-ribbon {
+  .team-swimlanes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .team-lane-card {
+    flex: 1 1 250px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .team-lane-card.team-active {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+  .team-lane-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .team-lane-header:hover {
+    color: var(--primary);
+  }
+  .team-lane-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
   }
   .assignee-pill-tile {
-    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 10px;
+    gap: 6px;
+    padding: 4px 9px;
     border-radius: 999px;
     border: 1px solid var(--border);
-    background: var(--surface-2);
+    background: var(--surface);
     color: var(--text);
-    font-size: 0.79rem;
+    font-size: 0.78rem;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -1611,7 +1645,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.10</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.11</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1648,7 +1682,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.10 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.11 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3236,8 +3270,7 @@ function computeAssigneeStats(matchFn, today, projectIdFilter = '') {
   return { total, done, open: total - done, overdue, blocked };
 }
 
-function buildAssigneePillHtml({ labelText, icon, teamText, leftOrg, stats, isSelected, onClickExpr, titleText }) {
-  const safeTeam = esc(teamText || '').replace(/'/g, "\\'");
+function buildAssigneePillHtml({ labelText, icon, leftOrg, stats, isSelected, onClickExpr, titleText }) {
   return `
     <div class="assignee-pill-tile ${isSelected ? 'active' : ''}"
       style="${leftOrg ? 'opacity:0.7;border-style:dashed;' : ''}"
@@ -3245,7 +3278,6 @@ function buildAssigneePillHtml({ labelText, icon, teamText, leftOrg, stats, isSe
       title="${esc(titleText)}">
       <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();${onClickExpr}" />
       <span style="font-weight:700;">${icon} ${esc(labelText)}</span>
-      ${teamText ? `<span class="badge b-cat clickable-team-badge" style="font-size:0.66rem;padding:1px 6px;" onclick="event.stopPropagation();filterByTeamName('${safeTeam}')" title="Click to filter team ${esc(teamText)}">${esc(teamText)}</span>` : ''}
       <span class="assignee-pill-metrics">
         <span><strong>${stats.open}</strong>/${stats.total}</span>
         ${stats.overdue ? `<span class="ap-badge-warn" title="${stats.overdue} overdue">🔥${stats.overdue}</span>` : ''}
@@ -3262,63 +3294,108 @@ function renderAssigneeProgressStrip() {
   const selectedList = getSelectedAssignees();
   const teamFilter = state.ui.taskFilters.team || '';
   const projFilter = state.ui.taskFilters.projectId || '';
+  const activeProj = projFilter ? getProject(projFilter) : null;
   const isSelectedFn = (val) => selectedList.some(x => x.toLowerCase() === val.toLowerCase());
 
-  const meStats = computeAssigneeStats(name => !name, today, projFilter);
-  const showMe = !teamFilter || teamFilter === '__unassigned__';
-  const meTile = showMe ? buildAssigneePillHtml({
-    labelText: 'Me',
-    icon: '🙋',
-    teamText: '',
-    leftOrg: false,
-    stats: meStats,
-    isSelected: isSelectedFn('__me__'),
-    onClickExpr: "toggleAssigneeSelection('__me__')",
-    titleText: `Me: ${meStats.open} open, ${meStats.done}/${meStats.total} done`
-  }) : '';
+  // Group assignees into Team Swimlanes, scoped to active project when a project is selected
+  const groupsMap = new Map();
+  const ensureGroup = (key, label, filterToken) => {
+    if (!groupsMap.has(key)) {
+      groupsMap.set(key, { key, label, filterToken, membersHtml: [], openSum: 0, totalSum: 0 });
+    }
+    return groupsMap.get(key);
+  };
 
+  // 1. "Me" (unassigned to colleague) — shown in Unassigned / Self swimlane when relevant
+  const meStats = computeAssigneeStats(name => !name, today, projFilter);
+  const showMe = (!teamFilter || teamFilter === '__unassigned__') && (!projFilter || meStats.total > 0 || isSelectedFn('__me__'));
+  if (showMe) {
+    const grp = ensureGroup('__unassigned__', 'Unassigned / Self', '__unassigned__');
+    grp.openSum += meStats.open;
+    grp.totalSum += meStats.total;
+    grp.membersHtml.push(buildAssigneePillHtml({
+      labelText: 'Me',
+      icon: '🙋',
+      leftOrg: false,
+      stats: meStats,
+      isSelected: isSelectedFn('__me__'),
+      onClickExpr: "toggleAssigneeSelection('__me__')",
+      titleText: `Me: ${meStats.open} open, ${meStats.done}/${meStats.total} done`
+    }));
+  }
+
+  // 2. Named assignees grouped by Team (filtered by active project when projFilter is set)
   const sortedAssignees = [...state.assignees].sort((a, b) => {
     if (!!a.leftOrg !== !!b.leftOrg) return a.leftOrg ? 1 : -1;
     return a.name.localeCompare(b.name);
   });
 
-  const personTiles = sortedAssignees
-    .filter(a => {
-      if (teamFilter) {
-        const tName = (a.team || '').trim();
-        if (teamFilter === '__unassigned__' && tName) return false;
-        if (teamFilter !== '__unassigned__' && tName !== teamFilter) return false;
-      }
-      const stats = computeAssigneeStats(n => n.toLowerCase() === a.name.toLowerCase(), today, projFilter);
-      if (a.leftOrg && stats.total === 0 && !isSelectedFn(a.name)) return false;
-      return true;
-    })
-    .map(a => {
-      const stats = computeAssigneeStats(n => n.toLowerCase() === a.name.toLowerCase(), today, projFilter);
-      const isSelected = isSelectedFn(a.name);
-      const safeName = esc(a.name).replace(/'/g, "\\'");
-      return buildAssigneePillHtml({
-        labelText: a.name,
-        icon: a.leftOrg ? '🚪' : '👤',
-        teamText: a.team || '',
-        leftOrg: !!a.leftOrg,
-        stats,
-        isSelected,
-        onClickExpr: `toggleAssigneeSelection('${safeName}')`,
-        titleText: `${a.name}${a.team ? ' (' + a.team + ')' : ''}: ${stats.open} open, ${stats.done}/${stats.total} done${stats.overdue ? ', ' + stats.overdue + ' overdue' : ''}${stats.blocked ? ', ' + stats.blocked + ' blocked' : ''}`
-      });
-    }).join('');
+  sortedAssignees.forEach(a => {
+    const tName = (a.team || '').trim();
+    if (teamFilter) {
+      if (teamFilter === '__unassigned__' && tName) return;
+      if (teamFilter !== '__unassigned__' && tName !== teamFilter) return;
+    }
+    const stats = computeAssigneeStats(n => n.toLowerCase() === a.name.toLowerCase(), today, projFilter);
+    // Filter assignees by project when a project is selected (keep selected assignees visible so user can uncheck)
+    if (projFilter && stats.total === 0 && !isSelectedFn(a.name)) return;
+    if (a.leftOrg && stats.total === 0 && !isSelectedFn(a.name)) return;
+
+    const grpKey = tName ? `team::${tName}` : '__unassigned__';
+    const grpLabel = tName || 'Unassigned / Self';
+    const grpToken = tName || '__unassigned__';
+    const grp = ensureGroup(grpKey, grpLabel, grpToken);
+    grp.openSum += stats.open;
+    grp.totalSum += stats.total;
+    const safeName = esc(a.name).replace(/'/g, "\\'");
+    grp.membersHtml.push(buildAssigneePillHtml({
+      labelText: a.name,
+      icon: a.leftOrg ? '🚪' : '👤',
+      leftOrg: !!a.leftOrg,
+      stats,
+      isSelected: isSelectedFn(a.name),
+      onClickExpr: `toggleAssigneeSelection('${safeName}')`,
+      titleText: `${a.name}${tName ? ' (' + tName + ')' : ''}: ${stats.open} open, ${stats.done}/${stats.total} done${stats.overdue ? ', ' + stats.overdue + ' overdue' : ''}${stats.blocked ? ', ' + stats.blocked + ' blocked' : ''}`
+    }));
+  });
+
+  // Sort swimlanes alphabetically with Unassigned / Self placed last
+  const lanes = Array.from(groupsMap.values()).sort((a, b) => {
+    if (a.key === '__unassigned__') return 1;
+    if (b.key === '__unassigned__') return -1;
+    return a.label.localeCompare(b.label);
+  });
+
+  const lanesHtml = lanes.length === 0
+    ? `<div style="font-size:0.78rem;color:var(--text-muted);padding:4px 2px;">No assignees with tasks in ${activeProj ? esc(activeProj.name) : 'this view'}.</div>`
+    : lanes.map(lane => {
+        const isTeamActive = teamFilter === lane.filterToken;
+        const safeToken = esc(lane.filterToken).replace(/'/g, "\\'");
+        return `
+          <div class="team-lane-card ${isTeamActive ? 'team-active' : ''}">
+            <div class="team-lane-header" onclick="filterByTeamName('${safeToken}')" title="Click to filter all tasks & subtasks for ${esc(lane.label)}">
+              <span>🏷️ ${esc(lane.label)}</span>
+              <span style="font-weight:600;color:var(--text-muted);">${lane.openSum}/${lane.totalSum}</span>
+            </div>
+            <div class="team-lane-members">${lane.membersHtml.join('')}</div>
+          </div>
+        `;
+      }).join('');
 
   return `
     <div class="assignee-ribbon-wrap">
       <div class="assignee-ribbon-header">
-        <span><strong>👥 Team Workload</strong> <span style="opacity:0.8;">(check members to multi-filter • click team pill for team tasks)</span></span>
+        <span>
+          <strong>👥 Team Swimlanes</strong>
+          ${activeProj ? `<span class="badge b-cat" style="margin-left:4px;">📁 ${esc(activeProj.name)}</span>` : ''}
+          <span style="opacity:0.8;margin-left:4px;">(click team header to filter team • check members to multi-filter)</span>
+        </span>
         <div style="display:flex;gap:8px;align-items:center;">
           ${(selectedList.length > 0 || teamFilter) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.taskFilters.assignees=[];state.ui.taskFilters.team='';render()">Clear selection</button>` : ''}
-          <button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.showAssigneeStrip=false;render()" title="Hide team bar to maximize task list space">Hide</button>
+          <button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.showAssigneeStrip=false;render()" title="Hide team swimlanes to maximize task list space">Hide</button>
         </div>
       </div>
-      <div class="assignee-ribbon">${meTile}${personTiles}</div>
+      <div class="team-swimlanes">${lanesHtml}</div>
     </div>
   `;
 }
@@ -3528,9 +3605,15 @@ function renderTasks(el) {
               <option value="" ${getSelectedAssignees().length === 0 ? 'selected' : ''}>${getSelectedAssignees().length > 1 ? `Multiple (${getSelectedAssignees().length})` : 'All Assignees'}</option>
               <option value="__me__" ${getSelectedAssignees().length === 1 && getSelectedAssignees()[0] === '__me__' ? 'selected' : ''}>Assigned to Me</option>
               <option value="__delegated__" ${getSelectedAssignees().length === 1 && getSelectedAssignees()[0] === '__delegated__' ? 'selected' : ''}>All Delegated</option>
-              ${getAllAssignees(true).map(c => {
+              ${getAllAssignees(true).filter(c => {
+                if (!f.projectId) return true;
+                const st = computeAssigneeStats(n => n.toLowerCase() === c.toLowerCase(), todayStr(), f.projectId);
+                const sel = getSelectedAssignees().some(x => x.toLowerCase() === c.toLowerCase());
+                return st.total > 0 || sel;
+              }).map(c => {
                 const sel = getSelectedAssignees().length === 1 && getSelectedAssignees()[0].toLowerCase() === c.toLowerCase();
-                return `<option value="${esc(c)}" ${sel ? 'selected' : ''}>${esc(c)}</option>`;
+                const tm = (getAssigneeMeta(c)?.team || '').trim();
+                return `<option value="${esc(c)}" ${sel ? 'selected' : ''}>${esc(c)}${tm ? ` (${esc(tm)})` : ''}</option>`;
               }).join('')}
             </select>
           </div>
@@ -8234,7 +8317,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.10';
+const CADENCE_VERSION = 'v1.11';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
