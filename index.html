@@ -1645,7 +1645,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.11</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.12</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1682,7 +1682,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.11 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.12 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -1798,7 +1798,8 @@ let state = {
     jiraDefaultProjectKey: '',
     jiraIssueType: 'Task',
     jiraAutoSyncWorklogs: false,
-    categories: null
+    categories: null,
+    myTeam: ''
   },
   activeTimer: null, // { taskId, subtaskId, startedAt }
   ui: {
@@ -1877,7 +1878,7 @@ async function loadState() {
       state.calendarEvents = idbData.calendarEvents || [];
       state.assignees = idbData.assignees || [];
       syncAssigneesFromTasks();
-      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null }, idbData.settings || {});
+      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null, myTeam: '' }, idbData.settings || {});
       state.savedTaskFilters = idbData.savedTaskFilters || [];
       state.defaultTaskFilter = idbData.defaultTaskFilter || null;
       state.activeTimer = idbData.activeTimer || null;
@@ -1902,7 +1903,7 @@ async function loadState() {
       syncAssigneesFromTasks();
       state.assignees = parsed.assignees || [];
       syncAssigneesFromTasks();
-      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null }, parsed.settings || {});
+      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null, myTeam: '' }, parsed.settings || {});
       state.savedTaskFilters = parsed.savedTaskFilters || [];
       state.defaultTaskFilter = parsed.defaultTaskFilter || null;
       state.activeTimer = parsed.activeTimer || null;
@@ -2405,7 +2406,7 @@ function importBackup(event) {
       syncAssigneesFromTasks();
       state.savedTaskFilters = parsed.savedTaskFilters || [];
       state.defaultTaskFilter = parsed.defaultTaskFilter || null;
-      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null }, parsed.settings || {});
+      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null, myTeam: '' }, parsed.settings || {});
       state.activeTimer = null;
       state.ui.taskFilters.defaultApplied = false;
       applyDefaultTaskFilterOnLoad();
@@ -2943,9 +2944,23 @@ function getAllAssignees(includeLeft = true) {
     .sort((a, b) => a.localeCompare(b));
 }
 
+function getMyTeam() {
+  return (state.settings?.myTeam || '').trim();
+}
+
+function setMyTeam(teamName) {
+  if (!state.settings) state.settings = {};
+  state.settings.myTeam = (teamName || '').trim();
+  saveState();
+  render();
+  showToast(state.settings.myTeam ? `🙋 Your team set to "${state.settings.myTeam}"` : '🙋 Removed your team tag');
+}
+
 function getAllTeams() {
   syncAssigneesFromTasks();
   const set = new Set();
+  const myTm = getMyTeam();
+  if (myTm) set.add(myTm);
   state.assignees.forEach(a => {
     if (a.team && a.team.trim()) set.add(a.team.trim());
   });
@@ -3205,9 +3220,7 @@ function getFilteredTasks() {
     if (f.team) {
       const matchesTeam = (rawName) => {
         const clean = (rawName || '').trim();
-        if (!clean) return f.team === '__unassigned__';
-        const meta = getAssigneeMeta(clean);
-        const teamName = (meta?.team || '').trim();
+        const teamName = !clean ? getMyTeam() : ((getAssigneeMeta(clean)?.team || '').trim());
         if (f.team === '__unassigned__') return !teamName;
         return teamName === f.team;
       };
@@ -3306,11 +3319,16 @@ function renderAssigneeProgressStrip() {
     return groupsMap.get(key);
   };
 
-  // 1. "Me" (unassigned to colleague) — shown in Unassigned / Self swimlane when relevant
+  // 1. "Me" (unassigned to colleague) — grouped under getMyTeam() if tagged, else Unassigned / Self
+  const myTeamName = getMyTeam();
   const meStats = computeAssigneeStats(name => !name, today, projFilter);
-  const showMe = (!teamFilter || teamFilter === '__unassigned__') && (!projFilter || meStats.total > 0 || isSelectedFn('__me__'));
+  const meMatchesTeamFilter = !teamFilter || (myTeamName ? teamFilter === myTeamName : teamFilter === '__unassigned__');
+  const showMe = meMatchesTeamFilter && (!projFilter || meStats.total > 0 || isSelectedFn('__me__'));
   if (showMe) {
-    const grp = ensureGroup('__unassigned__', 'Unassigned / Self', '__unassigned__');
+    const meGrpKey = myTeamName ? `team::${myTeamName}` : '__unassigned__';
+    const meGrpLabel = myTeamName || 'Unassigned / Self';
+    const meGrpToken = myTeamName || '__unassigned__';
+    const grp = ensureGroup(meGrpKey, meGrpLabel, meGrpToken);
     grp.openSum += meStats.open;
     grp.totalSum += meStats.total;
     grp.membersHtml.push(buildAssigneePillHtml({
@@ -3320,7 +3338,7 @@ function renderAssigneeProgressStrip() {
       stats: meStats,
       isSelected: isSelectedFn('__me__'),
       onClickExpr: "toggleAssigneeSelection('__me__')",
-      titleText: `Me: ${meStats.open} open, ${meStats.done}/${meStats.total} done`
+      titleText: `Me${myTeamName ? ' (' + myTeamName + ')' : ''}: ${meStats.open} open, ${meStats.done}/${meStats.total} done`
     }));
   }
 
@@ -3454,8 +3472,7 @@ function renderImplementationPulseBar() {
   const baseTasks = state.tasks.filter(t => (!f.projectId || t.projectId === f.projectId) && (!f.team || (function() {
     const m = (raw) => {
       const c = (raw || '').trim();
-      if (!c) return f.team === '__unassigned__';
-      const tm = (getAssigneeMeta(c)?.team || '').trim();
+      const tm = !c ? getMyTeam() : ((getAssigneeMeta(c)?.team || '').trim());
       return f.team === '__unassigned__' ? !tm : tm === f.team;
     };
     return m(t.assignee) || (t.subtasks || []).some(s => m(s.assignee));
@@ -3660,11 +3677,8 @@ function renderTaskList(tasks) {
     }
     if (teamFilter) {
       const clean = (s.assignee || '').trim();
-      if (!clean) ok = ok && (teamFilter === '__unassigned__');
-      else {
-        const tm = (getAssigneeMeta(clean)?.team || '').trim();
-        ok = ok && (teamFilter === '__unassigned__' ? !tm : tm === teamFilter);
-      }
+      const tm = !clean ? getMyTeam() : ((getAssigneeMeta(clean)?.team || '').trim());
+      ok = ok && (teamFilter === '__unassigned__' ? !tm : tm === teamFilter);
     }
     return ok;
   };
@@ -3683,7 +3697,7 @@ function renderTaskList(tasks) {
     const pct = allSubs.length ? Math.round((doneSubs / allSubs.length) * 100) : 0;
     const running = isTimerRunningFor(t.id, null);
     const tAssigneeMeta = t.assignee ? getAssigneeMeta(t.assignee) : null;
-    const tTeam = (tAssigneeMeta?.team || '').trim();
+    const tTeam = t.assignee ? ((tAssigneeMeta?.team || '').trim()) : getMyTeam();
     const safeTTeam = esc(tTeam).replace(/'/g, "\\'");
 
     return `
@@ -3735,7 +3749,7 @@ function renderTaskList(tasks) {
             ${subs.map(sub => {
               const subRunning = isTimerRunningFor(t.id, sub.id);
               const isMatchedSub = doesSubMatchFilter(sub);
-              const sTeam = sub.assignee ? (getAssigneeMeta(sub.assignee)?.team || '').trim() : '';
+              const sTeam = sub.assignee ? ((getAssigneeMeta(sub.assignee)?.team || '').trim()) : getMyTeam();
               const safeSTeam = esc(sTeam).replace(/'/g, "\\'");
               return `
                 <div class="subtask-row ${isMatchedSub ? 'assignee-match' : ''}">
@@ -4505,10 +4519,30 @@ function renderAssignees(el) {
   const leftCount = list.filter(a => a.leftOrg).length;
   const teams = getAllTeams();
 
+  const myTeam = getMyTeam();
+  const meDirStats = computeAssigneeStats(n => !n, today);
+
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-      <p class="helper-banner" style="margin:0;">Manage team members, email IDs, and teams. Renaming an assignee automatically updates all their tasks and subtasks.</p>
+      <p class="helper-banner" style="margin:0;">Manage team members, email IDs, and teams—including tagging yourself (<strong>Me</strong>) to a team.</p>
       <button class="btn btn-primary" onclick="openAssigneeModal()">+ New Assignee</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;padding:12px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-weight:700;font-size:0.94rem;">🙋 My Team Tag (Self)</div>
+          <div class="field-hint" style="margin-top:2px;">Tag yourself to a team so tasks assigned to <strong>Me</strong> appear in that team's swimlane and team filter.</div>
+        </div>
+        <form onsubmit="event.preventDefault();setMyTeam(document.getElementById('myTeamInput').value)" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="myTeamInput" list="myTeamsDatalist" value="${esc(myTeam)}" placeholder="e.g. Platform, Functional, QA" style="width:220px;" />
+          <datalist id="myTeamsDatalist">
+            ${teams.map(tm => `<option value="${esc(tm)}"></option>`).join('')}
+          </datalist>
+          <button type="submit" class="btn btn-primary btn-sm">Save My Team</button>
+          ${myTeam ? `<button type="button" class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="setMyTeam('')">Clear</button>` : ''}
+        </form>
+      </div>
     </div>
 
     <div class="grid-3" style="margin-bottom:18px;">
@@ -4547,6 +4581,20 @@ function renderAssignees(el) {
               </tr>
             </thead>
             <tbody>
+              <tr style="background:var(--primary-soft);">
+                <td><strong>🙋 Me <span class="badge b-cat" style="font-size:0.68rem;margin-left:4px;">You</span></strong></td>
+                <td>${myTeam ? `<span class="badge b-cat">🏷️ ${esc(myTeam)}</span>` : '<span style="color:var(--text-muted);font-size:0.8rem;">Not tagged</span>'}</td>
+                <td><span style="color:var(--text-muted);font-size:0.8rem;">Self</span></td>
+                <td><span class="badge b-done">Active</span></td>
+                <td style="font-size:0.82rem;">
+                  <strong>${meDirStats.open}</strong> open • <strong>${meDirStats.done}</strong>/${meDirStats.total} done
+                  ${meDirStats.overdue ? ` • <span style="color:var(--danger);font-weight:700;">${meDirStats.overdue} overdue</span>` : ''}
+                </td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-xs" onclick="document.getElementById('myTeamInput')?.focus();document.getElementById('myTeamInput')?.select();">Tag Team</button>
+                  ${myTeam ? `<button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="setMyTeam('')">Clear</button>` : ''}
+                </td>
+              </tr>
               ${list.map(a => {
                 const st = computeAssigneeStats(n => n.toLowerCase() === a.name.toLowerCase(), today);
                 return `
@@ -5663,7 +5711,7 @@ function renderReports(el) {
         const tToday = todayStr();
         const people = ['Me', ...getAllAssignees(true)];
         const rows = people.map(person => {
-          const meta = person === 'Me' ? null : getAssigneeMeta(person);
+          const meta = person === 'Me' ? { team: getMyTeam(), leftOrg: false } : getAssigneeMeta(person);
           const st = computeAssigneeStats(name => person === 'Me' ? !name : name.toLowerCase() === person.toLowerCase(), tToday);
           const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
           return { person, team: meta?.team || '', leftOrg: !!meta?.leftOrg, ...st, pct };
@@ -8317,7 +8365,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.11';
+const CADENCE_VERSION = 'v1.12';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
