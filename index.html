@@ -466,14 +466,28 @@
     gap: 8px;
     flex-wrap: wrap;
   }
-  .subtask-actions {
+  .subtask-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .subtask-actions-left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .subtask-tags-right {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 5px;
     flex-wrap: wrap;
-    padding-top: 6px;
-    border-top: 1px solid var(--border);
+    margin-left: auto;
   }
 
   /* Kanban Board */
@@ -1597,7 +1611,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.9</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.10</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1634,7 +1648,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.9 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.10 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3646,22 +3660,26 @@ function renderTaskList(tasks) {
                     <input type="checkbox" ${sub.status === 'Done' ? 'checked' : ''} onchange="toggleSubtaskDone('${t.id}','${sub.id}')" />
                     <span class="${sub.status === 'Done' ? 'task-title done' : ''}" style="font-weight:600;font-size:0.84rem;">${esc(sub.title)}</span>
                     ${sub.description ? `<span class="rte-rendered" style="font-size:0.78rem;color:var(--text-muted);">${sanitizeNoteHtml(sub.description)}</span>` : ''}
-                    <span class="badge ${statusBadgeClass(sub.status)}">${esc(sub.status)}</span>
-                    <span class="badge b-cat">${esc(sub.category || t.category)}</span>
-                    ${sub.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(sub.assignee)}">👤 ${esc(sub.assignee)}</span>` : ''}
-                    ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
-                    ${sub.dueDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Due ${esc(sub.dueDate)}</span>` : ''}
-                    ${sub.plannedDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Planned ${esc(sub.plannedDate)} ${esc(sub.plannedStartTime || '')}</span>` : ''}
-                    ${renderSubtaskDependencyBadge(sub)}
                   </div>
-                  <div class="subtask-actions">
-                    ${renderIntegrationActions(t, sub, true)}
-                    ${subRunning
-                      ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
-                      : `<button class="btn btn-xs" onclick="startTimer('${t.id}','${sub.id}')">▶ Start</button>`}
-                    <button class="btn btn-xs" onclick="openMoveSubtaskModal('${t.id}','${sub.id}')" title="Move this subtask to its own project as a standalone task">📁 Move</button>
-                    <button class="btn btn-xs" onclick="openSubtaskModal('${t.id}','${sub.id}')">Edit</button>
-                    <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteSubtask('${t.id}','${sub.id}')">✕</button>
+                  <div class="subtask-footer">
+                    <div class="subtask-actions-left">
+                      ${renderIntegrationActions(t, sub, true)}
+                      ${subRunning
+                        ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
+                        : `<button class="btn btn-xs" onclick="startTimer('${t.id}','${sub.id}')">▶ Start</button>`}
+                      <button class="btn btn-xs" onclick="openMoveSubtaskModal('${t.id}','${sub.id}')" title="Move this subtask to its own project as a standalone task">📁 Move</button>
+                      <button class="btn btn-xs" onclick="openSubtaskModal('${t.id}','${sub.id}')">Edit</button>
+                      <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteSubtask('${t.id}','${sub.id}')">✕</button>
+                    </div>
+                    <div class="subtask-tags-right">
+                      <span class="badge ${statusBadgeClass(sub.status)}">${esc(sub.status)}</span>
+                      <span class="badge b-cat">${esc(sub.category || t.category)}</span>
+                      ${sub.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(sub.assignee)}">👤 ${esc(sub.assignee)}</span>` : ''}
+                      ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
+                      ${sub.dueDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Due ${esc(sub.dueDate)}</span>` : ''}
+                      ${sub.plannedDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Planned ${esc(sub.plannedDate)} ${esc(sub.plannedStartTime || '')}</span>` : ''}
+                      ${renderSubtaskDependencyBadge(sub)}
+                    </div>
                   </div>
                 </div>
               `;
@@ -8216,7 +8234,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.9';
+const CADENCE_VERSION = 'v1.10';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
