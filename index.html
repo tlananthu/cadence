@@ -431,6 +431,17 @@
   }
   .progress-text { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; }
 
+  .task-actions-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid var(--border);
+  }
+
   /* Subtasks list inside task */
   .subtasks-box {
     margin-top: 12px;
@@ -439,14 +450,14 @@
   }
   .subtask-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 6px 8px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    padding: 8px 10px;
     border-radius: 7px;
     background: var(--surface-2);
-    margin-bottom: 6px;
-    flex-wrap: wrap;
+    border: 1px solid var(--border);
+    margin-bottom: 7px;
     font-size: 0.84rem;
   }
   .subtask-left {
@@ -454,6 +465,15 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+  .subtask-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
   }
 
   /* Kanban Board */
@@ -1517,7 +1537,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.4</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.5</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1554,7 +1574,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.4 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.5 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3480,55 +3500,51 @@ function renderTaskList(tasks) {
     const doneSubs = allSubs.filter(s => s.status === 'Done').length;
     const pct = allSubs.length ? Math.round((doneSubs / allSubs.length) * 100) : 0;
     const running = isTimerRunningFor(t.id, null);
-    const actualSec = getActualSecondsForTask(t.id, true);
     const tAssigneeMeta = t.assignee ? getAssigneeMeta(t.assignee) : null;
     const tTeam = (tAssigneeMeta?.team || '').trim();
-    const safeTTeam = esc(tTeam).replace(/'/g, "\'");
+    const safeTTeam = esc(tTeam).replace(/'/g, "\\'");
 
     return `
       <div class="task-item">
-        <div class="task-top">
-          <div style="flex:1;min-width:240px;">
-            <div class="task-title-row">
-              <input type="checkbox" ${t.status === 'Done' ? 'checked' : ''} onchange="toggleTaskDone('${t.id}')" title="Toggle Done" />
-              <span class="task-title ${t.status === 'Done' ? 'done' : ''}">${esc(t.title)}</span>
-              <span class="badge ${statusBadgeClass(t.status)}">${esc(t.status)}</span>
-              <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
-              <span class="badge b-cat">${esc(t.category)}</span>
-              <span class="badge ${plannedFlag ? 'b-progress' : 'b-todo'}" title="${plannedFlag ? 'Planned task' : 'Non-planned task'}">${plannedFlag ? '🗓️ Planned' : '📋 Non-planned'}</span>
-              ${t.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(t.assignee)}">👤 ${esc(t.assignee)}</span>` : ''}
-              ${tTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeTTeam}')" title="Click to show tasks & subtasks for team ${esc(tTeam)}">🏷️ ${esc(tTeam)}</span>` : ''}
-              <span class="badge ${billable ? 'b-billable' : 'b-nonbillable'}">${billable ? '💲 Billable' : 'Non-billable'}</span>
-              ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Automatically creates next occurrence when marked Done">🔁 ${esc(t.recurrence)}</span>` : ''}
-              ${blocker ? `<span class="badge b-warn" title="This task is blocked until '${esc(blocker.title)}' is marked Done">⚠️ Blocked by: ${esc(blocker.title)}</span>` : ''}
-            </div>
-            ${t.description ? `<div class="rte-rendered" style="font-size:0.84rem;color:var(--text-muted);margin-top:5px;">${sanitizeNoteHtml(t.description)}</div>` : ''}
-            <div class="task-meta">
-              <span>📁 ${esc(proj ? proj.name : 'Unknown')}${stage ? ` › ${esc(stage.name)}` : ''}</span>
-              ${t.dueDate ? `<span>📅 Due: <strong>${esc(t.dueDate)}</strong></span>` : ''}
-              ${t.plannedDate ? `<span>🗓 Planned: ${esc(t.plannedDate)}${t.plannedStartTime ? ` at ${esc(t.plannedStartTime)}` : ''}</span>` : ''}
-              <span>⏱ Est: ${Number(t.estimatedHours || 0)}h • Actual: ${(actualSec/3600).toFixed(2)}h</span>
-              ${t.externalRef ? `<span>🔗 Ref: <strong>${esc(t.externalRef)}</strong></span>` : ''}
-            </div>
-            ${renderIntegrationActions(t, null)}
-
-            ${subs.length > 0 ? `
-              <div class="progress-wrap">
-                <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-                <span class="progress-text">${doneSubs} of ${subs.length} subtasks done (${pct}%)</span>
-              </div>
-            ` : ''}
+        <div>
+          <div class="task-title-row">
+            <input type="checkbox" ${t.status === 'Done' ? 'checked' : ''} onchange="toggleTaskDone('${t.id}')" title="Toggle Done" />
+            <span class="task-title ${t.status === 'Done' ? 'done' : ''}">${esc(t.title)}</span>
+            <span class="badge ${statusBadgeClass(t.status)}">${esc(t.status)}</span>
+            <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
+            <span class="badge b-cat">${esc(t.category)}</span>
+            <span class="badge ${plannedFlag ? 'b-progress' : 'b-todo'}" title="${plannedFlag ? 'Planned task' : 'Non-planned task'}">${plannedFlag ? '🗓️ Planned' : '📋 Non-planned'}</span>
+            ${t.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(t.assignee)}">👤 ${esc(t.assignee)}</span>` : ''}
+            ${tTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeTTeam}')" title="Click to show tasks & subtasks for team ${esc(tTeam)}">🏷️ ${esc(tTeam)}</span>` : ''}
+            <span class="badge ${billable ? 'b-billable' : 'b-nonbillable'}">${billable ? '💲 Billable' : 'Non-billable'}</span>
+            ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Automatically creates next occurrence when marked Done">🔁 ${esc(t.recurrence)}</span>` : ''}
+            ${blocker ? `<span class="badge b-warn" title="This task is blocked until '${esc(blocker.title)}' is marked Done">⚠️ Blocked by: ${esc(blocker.title)}</span>` : ''}
           </div>
-
-          <div class="task-actions">
-            ${running
-              ? `<button class="btn btn-sm btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
-              : `<button class="btn btn-sm" onclick="startTimer('${t.id}')" title="Start tracking time on this task">▶ Start</button>`}
-            <button class="btn btn-sm" onclick="openSubtaskModal('${t.id}')" title="Break this task into smaller subtasks">+ Subtask</button>
-            <button class="btn btn-sm" onclick="duplicateTask('${t.id}')" title="Make a copy of this task and its subtasks">📋 Copy</button>
-            <button class="btn btn-sm" onclick="openTaskModal('${t.id}')">Edit</button>
-            <button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteTask('${t.id}')">Delete</button>
+          ${t.description ? `<div class="rte-rendered" style="font-size:0.84rem;color:var(--text-muted);margin-top:5px;">${sanitizeNoteHtml(t.description)}</div>` : ''}
+          <div class="task-meta">
+            <span>📁 ${esc(proj ? proj.name : 'Unknown')}${stage ? ` › ${esc(stage.name)}` : ''}</span>
+            ${t.dueDate ? `<span>📅 Due: <strong>${esc(t.dueDate)}</strong></span>` : ''}
+            ${t.plannedDate ? `<span>🗓 Planned: ${esc(t.plannedDate)}${t.plannedStartTime ? ` at ${esc(t.plannedStartTime)}` : ''}</span>` : ''}
+            ${t.externalRef ? `<span>🔗 Ref: <strong>${esc(t.externalRef)}</strong></span>` : ''}
           </div>
+          ${renderIntegrationActions(t, null)}
+
+          ${subs.length > 0 ? `
+            <div class="progress-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <span class="progress-text">${doneSubs} of ${subs.length} subtasks done (${pct}%)</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="task-actions-bar">
+          ${running
+            ? `<button class="btn btn-sm btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
+            : `<button class="btn btn-sm" onclick="startTimer('${t.id}')" title="Start tracking time on this task">▶ Start</button>`}
+          <button class="btn btn-sm" onclick="openSubtaskModal('${t.id}')" title="Break this task into smaller subtasks">+ Subtask</button>
+          <button class="btn btn-sm" onclick="duplicateTask('${t.id}')" title="Make a copy of this task and its subtasks">📋 Copy</button>
+          <button class="btn btn-sm" onclick="openTaskModal('${t.id}')">Edit</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteTask('${t.id}')">Delete</button>
         </div>
 
         ${subs.length > 0 ? `
@@ -3536,10 +3552,9 @@ function renderTaskList(tasks) {
             ${(hasAssigneeOrTeamFilter && matchingSubs.length > 0 && matchingSubs.length < allSubs.length) ? `<div style="font-size:0.75rem;color:var(--primary);font-weight:600;margin-bottom:6px;">Showing ${matchingSubs.length} matching subtask(s) of ${allSubs.length}</div>` : ''}
             ${subs.map(sub => {
               const subRunning = isTimerRunningFor(t.id, sub.id);
-              const subAct = (getActualSecondsForSubtask(t.id, sub.id) / 3600).toFixed(2);
               const isMatchedSub = doesSubMatchFilter(sub);
               const sTeam = sub.assignee ? (getAssigneeMeta(sub.assignee)?.team || '').trim() : '';
-              const safeSTeam = esc(sTeam).replace(/'/g, "\'");
+              const safeSTeam = esc(sTeam).replace(/'/g, "\\'");
               return `
                 <div class="subtask-row ${isMatchedSub ? 'assignee-match' : ''}">
                   <div class="subtask-left">
@@ -3552,10 +3567,9 @@ function renderTaskList(tasks) {
                     ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
                     ${sub.dueDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Due ${esc(sub.dueDate)}</span>` : ''}
                     ${sub.plannedDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Planned ${esc(sub.plannedDate)} ${esc(sub.plannedStartTime || '')}</span>` : ''}
-                    <span style="font-size:0.76rem;color:var(--text-muted)">Est ${Number(sub.estimatedHours||0)}h / Act ${subAct}h</span>
                     ${renderSubtaskDependencyBadge(sub)}
                   </div>
-                  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+                  <div class="subtask-actions">
                     ${renderIntegrationActions(t, sub, true)}
                     ${subRunning
                       ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
@@ -7862,7 +7876,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.4';
+const CADENCE_VERSION = 'v1.5';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
