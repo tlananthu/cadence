@@ -526,6 +526,56 @@
 
   /* Rich text toolbar for Notes */
   
+  
+  /* Google Keep-style Masonry Notes Grid & Hashtag Chips */
+  .keep-masonry-grid {
+    column-count: 3;
+    column-gap: 16px;
+  }
+  @media (max-width: 1100px) {
+    .keep-masonry-grid { column-count: 2; }
+  }
+  @media (max-width: 700px) {
+    .keep-masonry-grid { column-count: 1; }
+  }
+  .keep-note-card {
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 16px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    vertical-align: top;
+  }
+  .hashtag-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: 1px solid rgba(79, 70, 229, 0.22);
+    cursor: pointer;
+    transition: all 0.14s ease;
+  }
+  .hashtag-chip:hover {
+    background: var(--primary);
+    color: #fff;
+  }
+  .hashtag-chip.active {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 0 0 2px var(--primary-soft);
+  }
+  .hashtag-filter-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
   .import-notes-box {
     background: var(--surface-2);
     border: 1px dashed var(--border);
@@ -1547,7 +1597,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.7</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.8</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1584,7 +1634,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.7 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.8 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -4543,26 +4593,126 @@ function deleteAssigneeRecord(assigneeId) {
 }
 
 // ===================== 4. NOTES VIEW =====================
-function renderNotes(el) {
-  const q = (state.ui.noteSearch || '').toLowerCase();
-  const notes = state.notes.filter(n => {
+function extractHashtagsFromNote(note) {
+  const tags = [];
+  const seen = new Set();
+  const pushTag = (raw) => {
+    const clean = String(raw || '').trim().replace(/^#+/, '').toLowerCase();
+    if (!clean || /^\d+$/.test(clean) || seen.has(clean)) return;
+    seen.add(clean);
+    tags.push(clean);
+  };
+
+  if (Array.isArray(note?.tags)) {
+    note.tags.forEach(pushTag);
+  }
+  const plainText = `${note?.title || ''} ${(note?.body || '').replace(/<[^>]+>/g, ' ')}`;
+  const matches = plainText.match(/#[A-Za-z][A-Za-z0-9_-]{0,30}/g) || [];
+  matches.forEach(pushTag);
+  return tags;
+}
+
+function getAllNoteHashtags() {
+  const counts = {};
+  (state.notes || []).forEach(n => {
+    extractHashtagsFromNote(n).forEach(tag => {
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function getFilteredNotes() {
+  const q = (state.ui.noteSearch || '').trim().toLowerCase();
+  const activeTag = (state.ui.noteHashtag || '').trim().replace(/^#+/, '').toLowerCase();
+
+  return (state.notes || []).filter(n => {
+    const noteTags = extractHashtagsFromNote(n);
+    if (activeTag && !noteTags.includes(activeTag)) return false;
     if (!q) return true;
-    const hay = `${n.title} ${n.body.replace(/<[^>]+>/g, ' ')} ${(n.tags || []).join(' ')}`.toLowerCase();
+    const hay = `${n.title || ''} ${(n.body || '').replace(/<[^>]+>/g, ' ')} ${noteTags.map(t => '#' + t + ' ' + t).join(' ')}`.toLowerCase();
     return hay.includes(q);
   });
+}
+
+function toggleNoteHashtagFilter(tag) {
+  const clean = String(tag || '').replace(/^#+/, '').toLowerCase();
+  state.ui.noteHashtag = (state.ui.noteHashtag === clean) ? '' : clean;
+  render();
+}
+
+function formatNoteBodyWithHashtags(html) {
+  const sanitized = sanitizeNoteHtml(html);
+  const container = document.createElement('div');
+  container.innerHTML = sanitized;
+
+  function walk(node) {
+    if (node.nodeType === 3) {
+      const text = node.nodeValue || '';
+      if (!/#[A-Za-z][A-Za-z0-9_-]{0,30}/.test(text)) return;
+      const frag = document.createDocumentFragment();
+      const regex = /(#[A-Za-z][A-Za-z0-9_-]{0,30})/g;
+      let lastIndex = 0;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        const tagRaw = match[1];
+        const tagName = tagRaw.slice(1).toLowerCase();
+        const span = document.createElement('span');
+        span.className = 'hashtag-chip';
+        span.setAttribute('onclick', `toggleNoteHashtagFilter('${tagName.replace(/'/g, "\'")}')`);
+        span.setAttribute('title', `Filter notes by ${tagRaw}`);
+        span.textContent = tagRaw;
+        frag.appendChild(span);
+        lastIndex = regex.lastIndex;
+      }
+      if (lastIndex < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+      if (node.parentNode) node.parentNode.replaceChild(frag, node);
+      return;
+    }
+    if (node.nodeType === 1) {
+      const children = Array.from(node.childNodes);
+      children.forEach(walk);
+    }
+  }
+
+  Array.from(container.childNodes).forEach(walk);
+  return container.innerHTML;
+}
+
+function renderNotes(el) {
+  const notes = getFilteredNotes();
+  const topTags = getAllNoteHashtags();
+  const activeTag = state.ui.noteHashtag || '';
 
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-      <p class="helper-banner" style="margin:0;">Capture meeting notes, ideas, or instructions. Link notes to a project, a task, or keep them standalone.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <p class="helper-banner" style="margin:0;">Google Keep-style notes with instant <strong>#hashtag</strong> filtering. Click any hashtag chip to filter.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn" onclick="openImportNotesModal()" title="Import external JSON notes without replacing existing data">⬆️ Import JSON</button>
         <button class="btn btn-primary" onclick="openNoteModal()">+ New Note</button>
       </div>
     </div>
 
-    <div class="filter-bar">
-      <input type="text" style="max-width:360px;" placeholder="🔍 Search all notes by title, text, or tag..." value="${esc(state.ui.noteSearch)}" oninput="state.ui.noteSearch=this.value;refreshNotesResults()" />
+    <div class="filter-bar" style="margin-bottom:10px;">
+      <input type="text" id="noteSearchInput" style="max-width:360px;" placeholder="🔍 Search title, body, or #hashtag..." value="${esc(state.ui.noteSearch)}" oninput="state.ui.noteSearch=this.value;refreshNotesResults()" />
+      ${activeTag ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.noteHashtag='';render()">Clear #${esc(activeTag)}</button>` : ''}
     </div>
+
+    ${topTags.length > 0 ? `
+      <div class="hashtag-filter-strip" id="notesHashtagStrip">
+        <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);">Hashtags:</span>
+        ${topTags.map(([tag, cnt]) => `
+          <span class="hashtag-chip ${activeTag === tag ? 'active' : ''}" onclick="toggleNoteHashtagFilter('${esc(tag).replace(/'/g, "\'")}')">
+            #${esc(tag)} <span style="opacity:0.75;margin-left:3px;">${cnt}</span>
+          </span>
+        `).join('')}
+      </div>
+    ` : ''}
 
     <div id="notesResultsContainer">${renderNotesGrid(notes)}</div>
   `;
@@ -4571,39 +4721,37 @@ function renderNotes(el) {
 function refreshNotesResults() {
   const box = document.getElementById('notesResultsContainer');
   if (!box) return;
-  const q = (state.ui.noteSearch || '').toLowerCase();
-  const notes = state.notes.filter(n => {
-    if (!q) return true;
-    const hay = `${n.title} ${n.body.replace(/<[^>]+>/g, ' ')} ${(n.tags || []).join(' ')}`.toLowerCase();
-    return hay.includes(q);
-  });
-  box.innerHTML = renderNotesGrid(notes);
+  box.innerHTML = renderNotesGrid(getFilteredNotes());
 }
 
 function renderNotesGrid(notes) {
+  const activeTag = state.ui.noteHashtag || '';
   return notes.length === 0 ? `<div class="card empty-state">No notes found. Click <strong>+ New Note</strong> to write your first note.</div>` : `
-      <div class="grid-2">
+      <div class="keep-masonry-grid">
         ${notes.map(n => {
           const proj = n.projectId ? getProject(n.projectId) : null;
           const task = n.taskId ? getTask(n.taskId) : null;
           const dateLabel = new Date(n.createdAt).toLocaleDateString();
+          const tags = extractHashtagsFromNote(n);
           return `
-            <div class="card">
-              <div class="card-header">
+            <div class="card keep-note-card">
+              <div class="card-header" style="margin-bottom:10px;">
                 <div>
                   <div class="card-title">${esc(n.title)}</div>
-                  <div style="font-size:0.76rem;color:var(--text-muted)">Created ${dateLabel}</div>
+                  <div style="font-size:0.74rem;color:var(--text-muted)">${dateLabel}</div>
                 </div>
-                <div style="display:flex;gap:6px;">
+                <div style="display:flex;gap:4px;">
                   <button class="btn btn-xs" onclick="openNoteModal('${n.id}')">Edit</button>
                   <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteNote('${n.id}')">Delete</button>
                 </div>
               </div>
-              <div style="font-size:0.88rem;margin-bottom:12px;" class="note-body">${sanitizeNoteHtml(n.body)}</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;font-size:0.76rem;">
+              <div style="font-size:0.88rem;margin-bottom:12px;" class="note-body">${formatNoteBodyWithHashtags(n.body)}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:9px;font-size:0.75rem;align-items:center;">
                 ${proj ? `<span class="badge b-todo">📁 ${esc(proj.name)}</span>` : ''}
                 ${task ? `<span class="badge b-todo">✅ ${esc(task.title)}</span>` : ''}
-                ${(n.tags || []).map(tag => `<span class="badge b-cat">#${esc(tag)}</span>`).join('')}
+                ${tags.map(tag => `
+                  <span class="hashtag-chip ${activeTag === tag ? 'active' : ''}" onclick="toggleNoteHashtagFilter('${esc(tag).replace(/'/g, "\'")}')">#${esc(tag)}</span>
+                `).join('')}
               </div>
             </div>
           `;
@@ -4680,10 +4828,14 @@ function formatNote(type) {
 
 function saveNoteForm(e, noteId) {
   e.preventDefault();
-  const tags = document.getElementById('nTags').value
+  const manualTags = document.getElementById('nTags').value
     .split(',')
-    .map(x => x.trim())
+    .map(x => x.trim().replace(/^#+/, '').toLowerCase())
     .filter(Boolean);
+  const draftTitle = document.getElementById('nTitle').value.trim();
+  const draftBody = sanitizeNoteHtml(document.getElementById('nBody').innerHTML);
+  const inlineTags = extractHashtagsFromNote({ title: draftTitle, body: draftBody, tags: [] });
+  const tags = Array.from(new Set([...manualTags, ...inlineTags]));
   const payload = {
     title: document.getElementById('nTitle').value.trim(),
     projectId: document.getElementById('nProject').value,
@@ -8047,7 +8199,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.7';
+const CADENCE_VERSION = 'v1.8';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
