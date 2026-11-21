@@ -738,6 +738,29 @@
     padding-top: 12px;
     border-top: 1px solid var(--border);
   }
+  .modal-subtask-grid-wrap {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .modal-subtask-grid-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.4fr) minmax(150px, 1.5fr) minmax(115px, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .modal-subtask-grid-row input {
+    padding: 6px 8px;
+    font-size: 0.82rem;
+  }
+  @media (max-width: 720px) {
+    .modal-subtask-grid-row {
+      grid-template-columns: 1fr;
+    }
+  }
 
   /* Toast */
   .toast {
@@ -1645,7 +1668,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.12</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.13</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1682,7 +1705,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.12 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.13 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -1708,7 +1731,7 @@
       </div>
       <button class="btn btn-sm" id="reminderBtn" onclick="toggleReminders()" title="Enable browser notification reminders for due and upcoming planned tasks">🔔 Reminders: Off</button>
       <button class="btn btn-sm btn-ghost" onclick="openShortcutsModal()" title="View keyboard shortcuts (press ?)">⌨️</button>
-      <button class="btn btn-primary btn-sm" onclick="openTaskModal()" title="Create a new task under any project (Shortcut: N)">+ New Task</button>
+      <button class="btn btn-primary btn-sm" onclick="openQuickAddTaskModal()" title="Quick Add Task (Shortcut: N or Q)">+ New Task</button>
     </div>
   </header>
 
@@ -3900,6 +3923,49 @@ function openQuickAddTaskModal() {
   openTaskModal(null, { quickMode: true });
 }
 
+let tempTaskSubtaskRows = [];
+
+function addTaskModalSubtaskRow(prefill = {}) {
+  tempTaskSubtaskRows.push({
+    id: prefill.id || null,
+    title: prefill.title || '',
+    description: prefill.description || '',
+    assignee: prefill.assignee || '',
+    status: prefill.status || 'To do',
+    category: prefill.category || '',
+    dueDate: prefill.dueDate || '',
+    plannedDate: prefill.plannedDate || '',
+    plannedStartTime: prefill.plannedStartTime || '',
+    estimatedHours: Number(prefill.estimatedHours || 0),
+    externalRef: prefill.externalRef || '',
+    blockedByTaskId: prefill.blockedByTaskId || '',
+    learningProgress: Number(prefill.learningProgress || 0)
+  });
+  renderTaskModalSubtaskGrid();
+}
+
+function removeTaskModalSubtaskRow(idx) {
+  tempTaskSubtaskRows.splice(idx, 1);
+  renderTaskModalSubtaskGrid();
+}
+
+function renderTaskModalSubtaskGrid() {
+  const wrap = document.getElementById('tSubtaskGridRows');
+  if (!wrap) return;
+  if (tempTaskSubtaskRows.length === 0) {
+    wrap.innerHTML = `<div style="font-size:0.76rem;color:var(--text-muted);padding:4px 2px;">No subtasks added yet. Click <strong>+ Add Subtask Row</strong> to add rows with Title, Description, and Assignee.</div>`;
+    return;
+  }
+  wrap.innerHTML = tempTaskSubtaskRows.map((r, i) => `
+    <div class="modal-subtask-grid-row">
+      <input type="text" value="${esc(r.title)}" oninput="tempTaskSubtaskRows[${i}].title=this.value" placeholder="Subtask title *" />
+      <input type="text" value="${esc(r.description)}" oninput="tempTaskSubtaskRows[${i}].description=this.value" placeholder="Description (optional)" />
+      <input type="text" list="colleaguesDatalist" value="${esc(r.assignee)}" oninput="tempTaskSubtaskRows[${i}].assignee=this.value" placeholder="Assignee (Me)" />
+      <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="removeTaskModalSubtaskRow(${i})" title="Remove row">✕</button>
+    </div>
+  `).join('');
+}
+
 function openTaskModal(taskId = null, opts = {}) {
   if (state.projects.length === 0) {
     alert('Please create a Project first! Every task must belong to a project.');
@@ -3908,6 +3974,24 @@ function openTaskModal(taskId = null, opts = {}) {
     return;
   }
   const t = taskId ? getTask(taskId) : null;
+  tempTaskSubtaskRows = (t && Array.isArray(t.subtasks))
+    ? t.subtasks.map(s => ({
+        id: s.id,
+        title: s.title || '',
+        description: (s.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+        assignee: s.assignee || '',
+        status: s.status || 'To do',
+        category: s.category || '',
+        dueDate: s.dueDate || '',
+        plannedDate: s.plannedDate || '',
+        plannedStartTime: s.plannedStartTime || '',
+        estimatedHours: Number(s.estimatedHours || 0),
+        externalRef: s.externalRef || '',
+        blockedByTaskId: s.blockedByTaskId || '',
+        learningProgress: Number(s.learningProgress || 0)
+      }))
+    : [];
+
   const activeProjects = state.projects.filter(p => !p.archived || (t && t.projectId === p.id));
   const defProj = getDefaultProject();
   const defaultProjId = t ? t.projectId : (defProj?.id || activeProjects[0]?.id || state.projects[0].id);
@@ -3918,7 +4002,7 @@ function openTaskModal(taskId = null, opts = {}) {
 
   openModal(`
     <div class="modal-header">
-      <h3>${t ? 'Edit Task' : (opts.quickMode ? '⚡ Quick Add Task' : 'New Task')}</h3>
+      <h3>${t ? 'Edit Task' : 'New Task'}</h3>
       <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
     </div>
     <form onsubmit="saveTaskForm(event, '${t ? t.id : ''}')">
@@ -3970,6 +4054,17 @@ function openTaskModal(taskId = null, opts = {}) {
           <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','olist')" title="Numbered list">1. List</button>
         </div>
         <div class="rte-editor desc-editor" id="tDesc" contenteditable="true" data-placeholder="Extra context or acceptance criteria...">${sanitizeNoteHtml(t?.description || '')}</div>
+      </div>
+
+      <div class="modal-subtask-grid-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+          <div>
+            <strong style="font-size:0.84rem;">☑️ Subtasks Grid</strong>
+            <span class="field-hint" style="margin-left:6px;">Title • Description • Assignee</span>
+          </div>
+          <button type="button" class="btn btn-xs" onclick="addTaskModalSubtaskRow()">+ Add Subtask Row</button>
+        </div>
+        <div id="tSubtaskGridRows"></div>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px;">
@@ -4086,6 +4181,7 @@ function openTaskModal(taskId = null, opts = {}) {
   `);
 
   populateStageDropdown(defaultProjId, t?.stageId || '');
+  renderTaskModalSubtaskGrid();
   updateTaskCategoryHint();
 }
 
@@ -4174,23 +4270,61 @@ function saveTaskForm(e, taskId) {
     learningProgress: Number(document.getElementById('tLearningProgress')?.value || 0),
     recurrence: document.getElementById('tRecurrence').value || 'none'
   };
+  const builtSubtasks = (tempTaskSubtaskRows || [])
+    .map(r => ({
+      title: (r.title || '').trim(),
+      description: (r.description || '').trim(),
+      assignee: (r.assignee || '').trim()
+    }))
+    .filter(r => r.title)
+    .map((r, idx) => {
+      const orig = (tempTaskSubtaskRows[idx] && tempTaskSubtaskRows[idx].id && t)
+        ? (t.subtasks || []).find(s => s.id === tempTaskSubtaskRows[idx].id)
+        : null;
+      if (r.assignee) ensureAssigneeRecord(r.assignee);
+      if (orig) {
+        return {
+          ...orig,
+          title: r.title,
+          description: r.description,
+          assignee: r.assignee
+        };
+      }
+      return {
+        id: uid('sub'),
+        title: r.title,
+        description: r.description,
+        assignee: r.assignee,
+        status: 'To do',
+        dueDate: '',
+        category: payload.category || 'Administrative',
+        plannedDate: '',
+        plannedStartTime: '',
+        estimatedHours: 0,
+        externalRef: '',
+        blockedByTaskId: '',
+        learningProgress: 0
+      };
+    });
+
+  let savedTaskRef = t || null;
   if (taskId) {
-    const t = getTask(taskId);
     const wasDone = t.status === 'Done';
-    Object.assign(t, payload);
+    Object.assign(t, payload, { subtasks: builtSubtasks });
     if (!wasDone && t.status === 'Done') {
       spawnNextRecurringTask(t);
       maybeAutoNotifySlack(t, null, 'completed');
     }
     showToast('Task updated');
   } else {
-    const created = { id: uid('task'), subtasks: [], ...payload };
+    const created = { id: uid('task'), subtasks: builtSubtasks, ...payload };
+    savedTaskRef = created;
     state.tasks.unshift(created);
     maybeAutoNotifySlack(created, null, 'created');
     showToast('Task created');
   }
   if (payload.assignee) ensureAssigneeRecord(payload.assignee);
-  orderTaskSubtasks(t);
+  orderTaskSubtasks(savedTaskRef);
   saveState();
   closeModal();
   render();
@@ -7476,7 +7610,7 @@ function openShortcutsModal() {
     </div>
     <p class="field-hint" style="margin-bottom:12px;">Press these keys anywhere (when not typing in a text box):</p>
     <div>
-      <div class="shortcut-row"><span>Create a new task</span><kbd>N</kbd></div>
+      <div class="shortcut-row"><span>Quick Add Task (concise popup)</span><span><kbd>Q</kbd> or <kbd>N</kbd></span></div>
       <div class="shortcut-row"><span>Create a new project</span><kbd>P</kbd></div>
       <div class="shortcut-row"><span>Focus search box</span><kbd>/</kbd></div>
       <div class="shortcut-row"><span>Switch views (Today → Settings)</span><span><kbd>1</kbd> – <kbd>9</kbd></span></div>
@@ -7509,7 +7643,7 @@ document.addEventListener('keydown', (e) => {
   if (isTyping || e.ctrlKey || e.metaKey || e.altKey) return;
 
   const k = e.key.toLowerCase();
-  if (k === 'n') { e.preventDefault(); openQuickAddTaskModal(); }
+  if (k === 'n' || k === 'q') { e.preventDefault(); openQuickAddTaskModal(); }
   else if (k === 'p') { e.preventDefault(); openProjectModal(); }
   else if (k === 'd') { e.preventDefault(); toggleTheme(); }
   else if (e.key === '?') { e.preventDefault(); openShortcutsModal(); }
@@ -8365,7 +8499,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.12';
+const CADENCE_VERSION = 'v1.13';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
