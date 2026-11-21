@@ -1537,7 +1537,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.5</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.6</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1574,7 +1574,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.5 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.6 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -1721,6 +1721,27 @@ function formatLocalDate(d) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+
+function normalizeWeekendDateToMonday(dateStr) {
+  if (!dateStr) return dateStr;
+  const parts = String(dateStr).trim().split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return dateStr;
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  const day = dt.getDay(); // 0 = Sun, 6 = Sat
+  if (day === 6) {
+    dt.setDate(dt.getDate() + 2);
+  } else if (day === 0) {
+    dt.setDate(dt.getDate() + 1);
+  } else {
+    return dateStr;
+  }
+  return formatLocalDate(dt);
+}
+
+function getEffectiveTimeEntryDate(dateStr) {
+  return normalizeWeekendDateToMonday(dateStr || todayStr());
 }
 
 function todayStr() {
@@ -2178,6 +2199,9 @@ function stopActiveTimer(silent = false) {
     }
   }
   if (task) {
+    const rawDate = todayStr();
+    const effDate = getEffectiveTimeEntryDate(rawDate);
+    const shiftedNote = effDate !== rawDate ? `${note} [Weekend time counted toward ${effDate}]` : note;
     state.timeEntries.unshift({
       id: uid('time'),
       projectId: task.projectId,
@@ -2185,9 +2209,9 @@ function stopActiveTimer(silent = false) {
       subtaskId: subtaskId || null,
       category,
       billable: isTaskBillable(task),
-      date: todayStr(),
+      date: effDate,
       durationSeconds: roundedSec,
-      note
+      note: shiftedNote
     });
   }
   state.activeTimer = null;
@@ -4836,7 +4860,7 @@ function saveTimeEntryForm(ev, entryId) {
     subtaskId,
     category,
     billable: document.getElementById('teBillable').value === 'true',
-    date: document.getElementById('teDate').value,
+    date: getEffectiveTimeEntryDate(document.getElementById('teDate').value),
     durationSeconds: totalSec,
     note: document.getElementById('teNote').value.trim()
   };
@@ -4969,7 +4993,7 @@ function saveQuickLogActual(e, taskId, subtaskId) {
     subtaskId: subtaskId || null,
     category,
     billable: document.getElementById('qlBillable').value === 'true',
-    date: document.getElementById('qlDate').value || todayStr(),
+    date: getEffectiveTimeEntryDate(document.getElementById('qlDate').value || todayStr()),
     durationSeconds: totalSec,
     note: document.getElementById('qlNote').value.trim()
   });
@@ -5024,7 +5048,7 @@ function getReportDateBounds() {
 
 function renderReports(el) {
   const bounds = getReportDateBounds();
-  const entries = state.timeEntries.filter(e => e.date >= bounds.start && e.date <= bounds.end);
+  const entries = state.timeEntries.map(e => ({ ...e, date: getEffectiveTimeEntryDate(e.date) })).filter(e => e.date >= bounds.start && e.date <= bounds.end);
 
   const totalSec = entries.reduce((s, e) => s + (e.durationSeconds || 0), 0);
   const billableSec = entries.filter(e => e.billable).reduce((s, e) => s + (e.durationSeconds || 0), 0);
@@ -5706,9 +5730,9 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
         subtaskId: subtaskId || null,
         category,
         billable: isTaskBillable(t),
-        date: dateStr,
+        date: getEffectiveTimeEntryDate(dateStr),
         durationSeconds: secs,
-        note: 'Logged from Calendar'
+        note: getEffectiveTimeEntryDate(dateStr) !== dateStr ? `Logged from Calendar [Weekend time counted toward ${getEffectiveTimeEntryDate(dateStr)}]` : 'Logged from Calendar'
       });
     }
     if (sub) sub.status = 'Done';
@@ -7876,7 +7900,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.5';
+const CADENCE_VERSION = 'v1.6';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
