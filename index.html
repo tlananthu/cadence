@@ -722,6 +722,14 @@
     box-shadow: var(--shadow-lg);
     padding: 22px;
   }
+  .modal.modal-wide-content {
+    max-width: calc(min(1360px, 100vw - var(--sidebar-w)) - 48px);
+  }
+  @media (max-width: 900px) {
+    .modal.modal-wide-content {
+      max-width: calc(100vw - 32px);
+    }
+  }
   .modal-header {
     display: flex;
     align-items: center;
@@ -747,11 +755,35 @@
   }
   .modal-subtask-grid-row {
     display: grid;
-    grid-template-columns: minmax(150px, 1.4fr) minmax(150px, 1.5fr) minmax(115px, 1fr) auto;
-    gap: 6px;
+    grid-template-columns: auto auto minmax(160px, 1.4fr) minmax(170px, 1.5fr) minmax(125px, 1fr) auto auto;
+    gap: 7px;
     align-items: center;
     margin-bottom: 6px;
+    padding: 5px 7px;
+    border-radius: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    transition: border-color 0.12s, background 0.12s;
   }
+  .modal-subtask-grid-row.drag-over {
+    border: 2px dashed var(--primary);
+    background: var(--primary-soft);
+  }
+  .modal-subtask-grid-row.is-done-row {
+    opacity: 0.85;
+  }
+  .modal-subtask-grid-row.is-done-row .st-grid-title-input {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+  .st-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    padding: 2px 4px;
+    user-select: none;
+  }
+  .st-drag-handle:active { cursor: grabbing; }
   .modal-subtask-grid-row input {
     padding: 6px 8px;
     font-size: 0.82rem;
@@ -1356,24 +1388,26 @@
     font-size: 0.82rem;
   }
 
-  /* Compact Implementation Pulse Strip (4 high-signal KPIs) */
+  /* Compact Implementation Pulse Strip inside Top Filter Block */
   .impl-pulse-grid {
+    flex: 1 1 100%;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
   }
   .pulse-tile {
-    background: var(--surface);
+    background: var(--surface-2);
     border: 1px solid var(--border);
-    border-radius: 9px;
-    padding: 9px 12px;
+    border-radius: 8px;
+    padding: 6px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
     cursor: pointer;
-    box-shadow: var(--shadow);
     transition: border-color 0.15s, background 0.15s;
   }
   .pulse-tile:hover {
@@ -1668,7 +1702,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.13</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.15</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1705,7 +1739,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.13 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.15 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2463,11 +2497,15 @@ function confirmResetData() {
 }
 
 // ===================== MODAL HELPERS =====================
-function openModal(html) {
-  document.getElementById('modalBox').innerHTML = html;
+function openModal(html, opts = {}) {
+  const box = document.getElementById('modalBox');
+  box.classList.toggle('modal-wide-content', Boolean(opts.wideContent));
+  box.innerHTML = html;
   document.getElementById('modalBackdrop').classList.add('open');
 }
 function closeModal() {
+  const box = document.getElementById('modalBox');
+  if (box) box.classList.remove('modal-wide-content');
   document.getElementById('modalBackdrop').classList.remove('open');
 }
 
@@ -3583,8 +3621,9 @@ function renderTasks(el) {
           <button class="tab-btn ${state.ui.taskViewMode === 'list' ? 'active' : ''}" onclick="state.ui.taskViewMode='list';render()">📋 List</button>
           <button class="tab-btn ${state.ui.taskViewMode === 'kanban' ? 'active' : ''}" onclick="state.ui.taskViewMode='kanban';render()">🗂️ Kanban</button>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>
+        <button class="btn btn-primary btn-sm" onclick="openQuickAddTaskModal()">+ New Task</button>
       </div>
+      ${renderImplementationPulseBar()}
     </div>
 
     ${state.ui.showMoreFilters ? `
@@ -3663,8 +3702,6 @@ function renderTasks(el) {
 
     ${renderActiveFilterPills()}
 
-    ${renderImplementationPulseBar()}
-
     ${renderAssigneeProgressStrip()}
 
     <div id="taskResultsContainer">${state.ui.taskViewMode === 'list' ? renderTaskList(tasks) : renderKanban(tasks)}</div>
@@ -3712,8 +3749,7 @@ function renderTaskList(tasks) {
     const blocker = isTaskBlockedByUnfinished(t);
     const billable = isTaskBillable(t);
     const plannedFlag = isTaskPlanned(t);
-    const rawSubs = t.subtasks || [];
-    const allSubs = [...rawSubs.filter(s => s.status !== 'Done'), ...rawSubs.filter(s => s.status === 'Done')];
+    const allSubs = t.subtasks || [];
     const matchingSubs = hasAssigneeOrTeamFilter ? allSubs.filter(doesSubMatchFilter) : [];
     const subs = (hasAssigneeOrTeamFilter && matchingSubs.length > 0) ? matchingSubs : allSubs;
     const doneSubs = allSubs.filter(s => s.status === 'Done').length;
@@ -3924,6 +3960,7 @@ function openQuickAddTaskModal() {
 }
 
 let tempTaskSubtaskRows = [];
+let draggedSubtaskRowIdx = null;
 
 function addTaskModalSubtaskRow(prefill = {}) {
   tempTaskSubtaskRows.push({
@@ -3949,6 +3986,42 @@ function removeTaskModalSubtaskRow(idx) {
   renderTaskModalSubtaskGrid();
 }
 
+function toggleTaskModalSubtaskDone(idx, checked) {
+  if (!tempTaskSubtaskRows[idx]) return;
+  tempTaskSubtaskRows[idx].status = checked ? 'Done' : 'To do';
+  renderTaskModalSubtaskGrid();
+}
+
+function onSubtaskGridDragStart(event, idx) {
+  draggedSubtaskRowIdx = idx;
+  event.dataTransfer.effectAllowed = 'move';
+  try { event.dataTransfer.setData('text/plain', String(idx)); } catch (e) {}
+}
+
+function onSubtaskGridDragOver(event, rowEl) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  if (rowEl) rowEl.classList.add('drag-over');
+}
+
+function onSubtaskGridDragLeave(rowEl) {
+  if (rowEl) rowEl.classList.remove('drag-over');
+}
+
+function onSubtaskGridDrop(event, targetIdx, rowEl) {
+  event.preventDefault();
+  if (rowEl) rowEl.classList.remove('drag-over');
+  let fromIdx = draggedSubtaskRowIdx;
+  if (fromIdx === null || fromIdx === undefined) {
+    try { fromIdx = Number(event.dataTransfer.getData('text/plain')); } catch (e) { fromIdx = -1; }
+  }
+  draggedSubtaskRowIdx = null;
+  if (isNaN(fromIdx) || fromIdx < 0 || fromIdx >= tempTaskSubtaskRows.length || fromIdx === targetIdx) return;
+  const [moved] = tempTaskSubtaskRows.splice(fromIdx, 1);
+  tempTaskSubtaskRows.splice(targetIdx, 0, moved);
+  renderTaskModalSubtaskGrid();
+}
+
 function renderTaskModalSubtaskGrid() {
   const wrap = document.getElementById('tSubtaskGridRows');
   if (!wrap) return;
@@ -3956,14 +4029,28 @@ function renderTaskModalSubtaskGrid() {
     wrap.innerHTML = `<div style="font-size:0.76rem;color:var(--text-muted);padding:4px 2px;">No subtasks added yet. Click <strong>+ Add Subtask Row</strong> to add rows with Title, Description, and Assignee.</div>`;
     return;
   }
-  wrap.innerHTML = tempTaskSubtaskRows.map((r, i) => `
-    <div class="modal-subtask-grid-row">
-      <input type="text" value="${esc(r.title)}" oninput="tempTaskSubtaskRows[${i}].title=this.value" placeholder="Subtask title *" />
-      <input type="text" value="${esc(r.description)}" oninput="tempTaskSubtaskRows[${i}].description=this.value" placeholder="Description (optional)" />
-      <input type="text" list="colleaguesDatalist" value="${esc(r.assignee)}" oninput="tempTaskSubtaskRows[${i}].assignee=this.value" placeholder="Assignee (Me)" />
-      <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="removeTaskModalSubtaskRow(${i})" title="Remove row">✕</button>
-    </div>
-  `).join('');
+  wrap.innerHTML = tempTaskSubtaskRows.map((r, i) => {
+    const isDone = r.status === 'Done';
+    return `
+      <div class="modal-subtask-grid-row ${isDone ? 'is-done-row' : ''}"
+        draggable="true"
+        ondragstart="onSubtaskGridDragStart(event, ${i})"
+        ondragover="onSubtaskGridDragOver(event, this)"
+        ondragleave="onSubtaskGridDragLeave(this)"
+        ondrop="onSubtaskGridDrop(event, ${i}, this)">
+        <span class="st-drag-handle" title="Drag to reorder subtask">⋮⋮</span>
+        <input type="checkbox" ${isDone ? 'checked' : ''}
+          onchange="toggleTaskModalSubtaskDone(${i}, this.checked)"
+          title="${isDone ? 'Completed (uncheck to mark To do)' : 'Mark subtask as Completed'}"
+          style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary);" />
+        <input type="text" class="st-grid-title-input" value="${esc(r.title)}" oninput="tempTaskSubtaskRows[${i}].title=this.value" placeholder="Subtask title *" />
+        <input type="text" value="${esc(r.description)}" oninput="tempTaskSubtaskRows[${i}].description=this.value" placeholder="Description (optional)" />
+        <input type="text" list="colleaguesDatalist" value="${esc(r.assignee)}" oninput="tempTaskSubtaskRows[${i}].assignee=this.value" placeholder="Assignee (Me)" />
+        ${isDone ? `<span class="badge b-done">✅ Completed</span>` : `<span class="badge b-todo" style="opacity:0.75;">${esc(r.status || 'To do')}</span>`}
+        <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="removeTaskModalSubtaskRow(${i})" title="Remove row">✕</button>
+      </div>
+    `;
+  }).join('');
 }
 
 function openTaskModal(taskId = null, opts = {}) {
@@ -4178,7 +4265,7 @@ function openTaskModal(taskId = null, opts = {}) {
         </div>
       </div>
     </form>
-  `);
+  `, { wideContent: true });
 
   populateStageDropdown(defaultProjId, t?.stageId || '');
   renderTaskModalSubtaskGrid();
@@ -4271,31 +4358,31 @@ function saveTaskForm(e, taskId) {
     recurrence: document.getElementById('tRecurrence').value || 'none'
   };
   const builtSubtasks = (tempTaskSubtaskRows || [])
-    .map(r => ({
-      title: (r.title || '').trim(),
-      description: (r.description || '').trim(),
-      assignee: (r.assignee || '').trim()
-    }))
-    .filter(r => r.title)
-    .map((r, idx) => {
-      const orig = (tempTaskSubtaskRows[idx] && tempTaskSubtaskRows[idx].id && t)
-        ? (t.subtasks || []).find(s => s.id === tempTaskSubtaskRows[idx].id)
+    .filter(r => (r.title || '').trim())
+    .map(r => {
+      const cleanTitle = (r.title || '').trim();
+      const cleanDesc = (r.description || '').trim();
+      const cleanAssignee = (r.assignee || '').trim();
+      const cleanStatus = r.status || 'To do';
+      const orig = (r.id && t)
+        ? (t.subtasks || []).find(s => s.id === r.id)
         : null;
-      if (r.assignee) ensureAssigneeRecord(r.assignee);
+      if (cleanAssignee) ensureAssigneeRecord(cleanAssignee);
       if (orig) {
         return {
           ...orig,
-          title: r.title,
-          description: r.description,
-          assignee: r.assignee
+          title: cleanTitle,
+          description: cleanDesc,
+          assignee: cleanAssignee,
+          status: cleanStatus
         };
       }
       return {
         id: uid('sub'),
-        title: r.title,
-        description: r.description,
-        assignee: r.assignee,
-        status: 'To do',
+        title: cleanTitle,
+        description: cleanDesc,
+        assignee: cleanAssignee,
+        status: cleanStatus,
         dueDate: '',
         category: payload.category || 'Administrative',
         plannedDate: '',
@@ -4324,7 +4411,7 @@ function saveTaskForm(e, taskId) {
     showToast('Task created');
   }
   if (payload.assignee) ensureAssigneeRecord(payload.assignee);
-  orderTaskSubtasks(savedTaskRef);
+  // Keep explicit drag order set in the task popup
   saveState();
   closeModal();
   render();
@@ -8499,7 +8586,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.13';
+const CADENCE_VERSION = 'v1.15';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
