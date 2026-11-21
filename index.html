@@ -1597,7 +1597,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.8</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.9</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1634,7 +1634,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.8 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.9 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3578,7 +3578,8 @@ function renderTaskList(tasks) {
     const blocker = isTaskBlockedByUnfinished(t);
     const billable = isTaskBillable(t);
     const plannedFlag = isTaskPlanned(t);
-    const allSubs = t.subtasks || [];
+    const rawSubs = t.subtasks || [];
+    const allSubs = [...rawSubs.filter(s => s.status !== 'Done'), ...rawSubs.filter(s => s.status === 'Done')];
     const matchingSubs = hasAssigneeOrTeamFilter ? allSubs.filter(doesSubMatchFilter) : [];
     const subs = (hasAssigneeOrTeamFilter && matchingSubs.length > 0) ? matchingSubs : allSubs;
     const doneSubs = allSubs.filter(s => s.status === 'Done').length;
@@ -3750,6 +3751,14 @@ function toggleTaskDone(taskId) {
   render();
 }
 
+
+function orderTaskSubtasks(task) {
+  if (!task || !Array.isArray(task.subtasks) || task.subtasks.length <= 1) return;
+  const openSubs = task.subtasks.filter(s => s.status !== 'Done');
+  const doneSubs = task.subtasks.filter(s => s.status === 'Done');
+  task.subtasks = [...openSubs, ...doneSubs];
+}
+
 function toggleSubtaskDone(taskId, subId) {
   const t = getTask(taskId);
   if (!t) return;
@@ -3758,6 +3767,7 @@ function toggleSubtaskDone(taskId, subId) {
   const wasDone = s.status === 'Done';
   s.status = wasDone ? 'To do' : 'Done';
   if (!wasDone && s.status === 'Done') maybeAutoNotifySlack(t, s, 'completed');
+  orderTaskSubtasks(t);
   saveState();
   render();
 }
@@ -4065,6 +4075,7 @@ function saveTaskForm(e, taskId) {
     showToast('Task created');
   }
   if (payload.assignee) ensureAssigneeRecord(payload.assignee);
+  orderTaskSubtasks(t);
   saveState();
   closeModal();
   render();
@@ -5298,8 +5309,10 @@ function saveQuickLogActual(e, taskId, subtaskId) {
   });
 
   if (document.getElementById('qlMarkDone')?.checked) {
-    if (sub) sub.status = 'Done';
-    else {
+    if (sub) {
+      sub.status = 'Done';
+      orderTaskSubtasks(t);
+    } else {
       const wasDone = t.status === 'Done';
       t.status = 'Done';
       if (!wasDone) spawnNextRecurringTask(t);
@@ -6034,8 +6047,10 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
         note: getEffectiveTimeEntryDate(dateStr) !== dateStr ? `Logged from Calendar [Weekend time counted toward ${getEffectiveTimeEntryDate(dateStr)}]` : 'Logged from Calendar'
       });
     }
-    if (sub) sub.status = 'Done';
-    else {
+    if (sub) {
+      sub.status = 'Done';
+      orderTaskSubtasks(t);
+    } else {
       const wasDone = t.status === 'Done';
       t.status = 'Done';
       if (!wasDone) spawnNextRecurringTask(t);
@@ -6047,8 +6062,10 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
     if (existing) {
       state.timeEntries = state.timeEntries.filter(e => e.id !== existing.id);
     }
-    if (sub) sub.status = 'To do';
-    else t.status = 'To do';
+    if (sub) {
+      sub.status = 'To do';
+      orderTaskSubtasks(t);
+    } else t.status = 'To do';
     saveState();
     render();
     showToast('Removed time entry from Time Tracker');
@@ -8199,7 +8216,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.8';
+const CADENCE_VERSION = 'v1.9';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
