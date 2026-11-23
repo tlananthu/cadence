@@ -1741,7 +1741,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.20</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.22</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1778,7 +1778,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.20 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.22 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3623,19 +3623,19 @@ function renderImplementationPulseBar() {
 
   return `
     <div class="impl-pulse-grid">
-      <div class="pulse-tile ${isOpenActive ? 'active' : ''}" onclick="state.ui.taskFilters.status='__open__';state.ui.taskFilters.due='';render()" title="Show all open tasks">
-        <div>
-          <div class="pulse-tile-label">Open Scope</div>
-          <div class="pulse-tile-sub">Active implementation items</div>
-        </div>
-        <div class="pulse-tile-num">${openCount}</div>
-      </div>
       <div class="pulse-tile ${isOverdueActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='overdue'?'':'overdue');state.ui.taskFilters.status='__open__';render()" title="Filter overdue tasks">
         <div>
           <div class="pulse-tile-label" style="color:${overdueCount ? 'var(--danger)' : 'var(--text-muted)'}">Overdue</div>
           <div class="pulse-tile-sub">Past due date</div>
         </div>
         <div class="pulse-tile-num" style="color:${overdueCount ? 'var(--danger)' : 'var(--text)'}">${overdueCount}</div>
+      </div>
+      <div class="pulse-tile ${isTodayActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='today'?'':'today');state.ui.taskFilters.status='__open__';render()" title="Filter tasks due today">
+        <div>
+          <div class="pulse-tile-label" style="color:var(--info)">Due Today</div>
+          <div class="pulse-tile-sub">${today}</div>
+        </div>
+        <div class="pulse-tile-num" style="color:var(--info)">${dueTodayCount}</div>
       </div>
       <div class="pulse-tile ${isBlockedActive ? 'active' : ''}" onclick="state.ui.taskFilters.status=(state.ui.taskFilters.status==='Blocked'?'__open__':'Blocked');render()" title="Filter blocked tasks">
         <div>
@@ -3644,12 +3644,12 @@ function renderImplementationPulseBar() {
         </div>
         <div class="pulse-tile-num" style="color:${blockedCount ? 'var(--warning)' : 'var(--text)'}">${blockedCount}</div>
       </div>
-      <div class="pulse-tile ${isTodayActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='today'?'':'today');state.ui.taskFilters.status='__open__';render()" title="Filter tasks due today">
+      <div class="pulse-tile ${isOpenActive ? 'active' : ''}" onclick="state.ui.taskFilters.status='__open__';state.ui.taskFilters.due='';render()" title="Show all open tasks">
         <div>
-          <div class="pulse-tile-label" style="color:var(--info)">Due Today</div>
-          <div class="pulse-tile-sub">${today}</div>
+          <div class="pulse-tile-label">Open Scope</div>
+          <div class="pulse-tile-sub">Active implementation items</div>
         </div>
-        <div class="pulse-tile-num" style="color:var(--info)">${dueTodayCount}</div>
+        <div class="pulse-tile-num">${openCount}</div>
       </div>
     </div>
   `;
@@ -4051,6 +4051,8 @@ function addTaskModalSubtaskRow(prefill = {}) {
     learningProgress: Number(prefill.learningProgress || 0)
   });
   renderTaskModalSubtaskGrid();
+  const titleInputs = document.querySelectorAll('#tSubtaskGridRows .st-grid-title-input');
+  if (titleInputs.length > 0) titleInputs[titleInputs.length - 1].focus();
 }
 
 function removeTaskModalSubtaskRow(idx) {
@@ -4111,13 +4113,13 @@ function renderTaskModalSubtaskGrid() {
         ondragleave="onSubtaskGridDragLeave(this)"
         ondrop="onSubtaskGridDrop(event, ${i}, this)">
         <span class="st-drag-handle" title="Drag to reorder subtask">⋮⋮</span>
-        <input type="checkbox" ${isDone ? 'checked' : ''}
+        <input type="checkbox" class="st-grid-done-input" ${isDone ? 'checked' : ''}
           onchange="toggleTaskModalSubtaskDone(${i}, this.checked)"
           title="${isDone ? 'Completed (uncheck to mark To do)' : 'Mark subtask as Completed'}"
           style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary);" />
         <input type="text" class="st-grid-title-input" value="${esc(r.title)}" oninput="tempTaskSubtaskRows[${i}].title=this.value" placeholder="Subtask title *" />
-        <input type="text" value="${esc(r.description)}" oninput="tempTaskSubtaskRows[${i}].description=this.value" placeholder="Description (optional)" />
-        <input type="text" list="colleaguesDatalist" value="${esc(r.assignee)}" oninput="tempTaskSubtaskRows[${i}].assignee=this.value" placeholder="Assignee (Me)" />
+        <input type="text" class="st-grid-desc-input" value="${esc(r.description)}" oninput="tempTaskSubtaskRows[${i}].description=this.value" placeholder="Description (optional)" />
+        <input type="text" class="st-grid-assignee-input" list="colleaguesDatalist" value="${esc(r.assignee)}" oninput="tempTaskSubtaskRows[${i}].assignee=this.value" placeholder="Assignee (Me)" />
         ${isDone ? `<span class="badge b-done">✅ Completed</span>` : `<span class="badge b-todo" style="opacity:0.75;">${esc(r.status || 'To do')}</span>`}
         <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="removeTaskModalSubtaskRow(${i})" title="Remove row">✕</button>
       </div>
@@ -4134,10 +4136,13 @@ function openTaskModal(taskId = null, opts = {}) {
   }
   const t = taskId ? getTask(taskId) : null;
   tempTaskSubtaskRows = (t && Array.isArray(t.subtasks))
-    ? t.subtasks.map(s => ({
+    ? t.subtasks.map(s => {
+        const plainDesc = (s.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        return {
         id: s.id,
         title: s.title || '',
-        description: (s.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+        description: plainDesc,
+        origPlainDesc: plainDesc,
         assignee: s.assignee || '',
         status: s.status || 'To do',
         category: s.category || '',
@@ -4148,7 +4153,8 @@ function openTaskModal(taskId = null, opts = {}) {
         externalRef: s.externalRef || '',
         blockedByTaskId: s.blockedByTaskId || '',
         learningProgress: Number(s.learningProgress || 0)
-      }))
+        };
+      })
     : [];
 
   const activeProjects = state.projects.filter(p => !p.archived || (t && t.projectId === p.id));
@@ -4441,9 +4447,26 @@ function saveTaskForm(e, taskId) {
       recurrence: document.getElementById('tRecurrence')?.value || 'none'
     };
 
-    const rows = Array.isArray(window.tempTaskSubtaskRows)
-      ? window.tempTaskSubtaskRows
-      : (typeof tempTaskSubtaskRows !== 'undefined' && Array.isArray(tempTaskSubtaskRows) ? tempTaskSubtaskRows : []);
+    // Sync any live DOM values from the subtask grid into tempTaskSubtaskRows
+    const domGridRows = document.querySelectorAll('#tSubtaskGridRows .modal-subtask-grid-row');
+    if (domGridRows.length > 0 && Array.isArray(tempTaskSubtaskRows)) {
+      domGridRows.forEach((rowEl, idx) => {
+        if (!tempTaskSubtaskRows[idx]) return;
+        const tInp = rowEl.querySelector('.st-grid-title-input');
+        const dInp = rowEl.querySelector('.st-grid-desc-input');
+        const aInp = rowEl.querySelector('.st-grid-assignee-input');
+        const cInp = rowEl.querySelector('.st-grid-done-input');
+        if (tInp) tempTaskSubtaskRows[idx].title = tInp.value;
+        if (dInp) tempTaskSubtaskRows[idx].description = dInp.value;
+        if (aInp) tempTaskSubtaskRows[idx].assignee = aInp.value;
+        if (cInp) {
+          if (cInp.checked) tempTaskSubtaskRows[idx].status = 'Done';
+          else if (tempTaskSubtaskRows[idx].status === 'Done') tempTaskSubtaskRows[idx].status = 'To do';
+        }
+      });
+    }
+
+    const rows = Array.isArray(tempTaskSubtaskRows) ? tempTaskSubtaskRows : [];
 
     const builtSubtasks = rows
       .filter(r => r && String(r.title || '').trim())
@@ -4457,10 +4480,13 @@ function saveTaskForm(e, taskId) {
           : null;
         if (cleanAssignee) ensureAssigneeRecord(cleanAssignee);
         if (orig) {
+          const finalDesc = (r.origPlainDesc !== undefined && cleanDesc === r.origPlainDesc)
+            ? (orig.description || '')
+            : cleanDesc;
           return {
             ...orig,
             title: cleanTitle,
-            description: cleanDesc,
+            description: finalDesc,
             assignee: cleanAssignee,
             status: cleanStatus
           };
@@ -4501,7 +4527,6 @@ function saveTaskForm(e, taskId) {
 
     if (payload.assignee) ensureAssigneeRecord(payload.assignee);
     tempTaskSubtaskRows = [];
-    window.tempTaskSubtaskRows = [];
     saveState();
     closeModal();
     render();
@@ -9115,7 +9140,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.20';
+const CADENCE_VERSION = 'v1.22';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
