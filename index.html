@@ -1722,6 +1722,169 @@
     .fab-quick-add { display: none !important; }
   }
 
+
+  /* Microsoft To-Do Split View */
+  .ms-todo-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 410px;
+    gap: 16px;
+    align-items: start;
+  }
+  .ms-todo-layout.no-detail {
+    grid-template-columns: 1fr;
+  }
+  .ms-todo-list-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ms-todo-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.14s, border-color 0.14s, box-shadow 0.14s;
+    box-shadow: var(--shadow);
+  }
+  .ms-todo-row:hover {
+    background: var(--surface-2);
+    border-color: var(--primary);
+  }
+  .ms-todo-row.selected {
+    background: var(--primary-soft);
+    border-color: var(--primary);
+    border-left: 3px solid var(--primary);
+  }
+  .ms-todo-check {
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    border: 2px solid var(--text-muted);
+    background: transparent;
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: transparent;
+    font-size: 0.72rem;
+    font-weight: 800;
+    transition: all 0.14s;
+    padding: 0;
+  }
+  .ms-todo-check:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .ms-todo-check.checked {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+  .ms-todo-row-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .ms-todo-row-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.35;
+    word-break: break-word;
+  }
+  .ms-todo-row-title.done {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+  .ms-todo-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .ms-todo-row-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .ms-todo-detail-pane {
+    position: sticky;
+    top: 72px;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow-lg);
+  }
+  .ms-todo-detail-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .ms-todo-section {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 11px 12px;
+    margin-bottom: 12px;
+  }
+  .ms-todo-section-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ms-todo-step-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 7px 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.84rem;
+  }
+  .ms-todo-step-row:last-of-type {
+    border-bottom: none;
+  }
+  .ms-todo-add-step {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .ms-todo-add-step input {
+    padding: 6px 9px;
+    font-size: 0.82rem;
+  }
+  @media (max-width: 960px) {
+    .ms-todo-layout {
+      grid-template-columns: 1fr;
+    }
+    .ms-todo-detail-pane {
+      position: static;
+      max-height: none;
+    }
+  }
+
   /* Print styles for Reports */
   @media print {
     .sidebar, .topbar, .no-print, .sidebar-overlay, .toast, .modal-backdrop { display: none !important; }
@@ -1741,7 +1904,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.22</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.23</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1778,7 +1941,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.22 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.23 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -1903,7 +2066,8 @@ let state = {
     calendarMode: 'day', // month | week | day
     calendarDate: '',
     calendarDragTarget: 'planned', // planned | due
-    taskViewMode: 'list', // list | kanban
+    taskViewMode: 'list', // list | todo | kanban
+    selectedTodoTaskId: '',
     showArchivedProjects: false,
     taskFilters: { search: '', projectId: '', stageId: '', category: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: false },
     noteSearch: '',
@@ -3691,6 +3855,7 @@ function renderTasks(el) {
         </div>
         <div class="tab-switch">
           <button class="tab-btn ${state.ui.taskViewMode === 'list' ? 'active' : ''}" onclick="state.ui.taskViewMode='list';render()">📋 List</button>
+          <button class="tab-btn ${state.ui.taskViewMode === 'todo' ? 'active' : ''}" onclick="state.ui.taskViewMode='todo';render()">☑️ To-Do</button>
           <button class="tab-btn ${state.ui.taskViewMode === 'kanban' ? 'active' : ''}" onclick="state.ui.taskViewMode='kanban';render()">🗂️ Kanban</button>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openQuickAddTaskModal()">+ New Task</button>
@@ -3776,15 +3941,21 @@ function renderTasks(el) {
 
     ${renderAssigneeProgressStrip()}
 
-    <div id="taskResultsContainer">${state.ui.taskViewMode === 'list' ? renderTaskList(tasks) : renderKanban(tasks)}</div>
+    <div id="taskResultsContainer">${renderTaskViewContent(tasks)}</div>
   `;
+}
+
+function renderTaskViewContent(tasks) {
+  if (state.ui.taskViewMode === 'todo') return renderTodoView(tasks);
+  if (state.ui.taskViewMode === 'kanban') return renderKanban(tasks);
+  return renderTaskList(tasks);
 }
 
 function refreshTaskResults() {
   const box = document.getElementById('taskResultsContainer');
   if (!box) return;
   const tasks = getFilteredTasks();
-  box.innerHTML = state.ui.taskViewMode === 'list' ? renderTaskList(tasks) : renderKanban(tasks);
+  box.innerHTML = renderTaskViewContent(tasks);
 }
 
 function clearTaskFilters() {
@@ -3917,6 +4088,216 @@ function renderTaskList(tasks) {
       </div>
     `;
   }).join('');
+}
+
+function selectTodoTask(taskId) {
+  state.ui.selectedTodoTaskId = taskId || '';
+  refreshTaskResults();
+}
+
+function closeTodoDetailPane() {
+  state.ui.selectedTodoTaskId = '';
+  refreshTaskResults();
+}
+
+function addQuickTodoSubtask(e, taskId) {
+  e.preventDefault();
+  const inp = document.getElementById('todoQuickStepInput');
+  const title = (inp?.value || '').trim();
+  if (!title) return;
+  const t = getTask(taskId);
+  if (!t) return;
+  if (!Array.isArray(t.subtasks)) t.subtasks = [];
+  const createdSub = {
+    id: uid('sub'),
+    title,
+    description: '',
+    assignee: '',
+    status: 'To do',
+    dueDate: '',
+    category: t.category || 'Administrative',
+    plannedDate: '',
+    plannedStartTime: '',
+    estimatedHours: 0,
+    externalRef: '',
+    blockedByTaskId: '',
+    learningProgress: 0
+  };
+  t.subtasks.push(createdSub);
+  if (typeof maybeAutoNotifySlack === 'function') maybeAutoNotifySlack(t, createdSub, 'created');
+  saveState();
+  render();
+  showToast('Subtask added');
+  setTimeout(() => document.getElementById('todoQuickStepInput')?.focus(), 20);
+}
+
+function renderTodoView(tasks) {
+  if (tasks.length === 0) {
+    return `<div class="card empty-state">No tasks match your filters. Click <strong>+ New Task</strong> to add one.</div>`;
+  }
+  const today = todayStr();
+  let selectedTask = state.ui.selectedTodoTaskId
+    ? tasks.find(t => t.id === state.ui.selectedTodoTaskId)
+    : null;
+  if (!selectedTask && state.ui.selectedTodoTaskId) {
+    state.ui.selectedTodoTaskId = '';
+  }
+
+  const rowsHtml = tasks.map(t => {
+    const isSel = selectedTask && selectedTask.id === t.id;
+    const isDone = t.status === 'Done';
+    const proj = getProject(t.projectId);
+    const subs = t.subtasks || [];
+    const doneSubs = subs.filter(s => s.status === 'Done').length;
+    const isOverdue = !isDone && t.dueDate && t.dueDate < today;
+    const isDueToday = !isDone && t.dueDate === today;
+    const blocker = isTaskBlockedByUnfinished(t);
+    const dueColor = isOverdue ? 'color:var(--danger);font-weight:700;' : (isDueToday ? 'color:var(--info);font-weight:700;' : '');
+
+    return `
+      <div class="ms-todo-row ${isSel ? 'selected' : ''}" onclick="selectTodoTask('${t.id}')">
+        <button type="button" class="ms-todo-check ${isDone ? 'checked' : ''}"
+          onclick="event.stopPropagation();toggleTaskDone('${t.id}')"
+          title="${isDone ? 'Mark as To do' : 'Mark as Done'}">✓</button>
+        <div class="ms-todo-row-body">
+          <div class="ms-todo-row-title ${isDone ? 'done' : ''}">${esc(t.title)}</div>
+          <div class="ms-todo-row-meta">
+            <span>📁 ${esc(proj ? proj.name : 'No project')}</span>
+            ${subs.length ? `<span>☑ ${doneSubs} of ${subs.length}</span>` : ''}
+            ${t.dueDate ? `<span style="${dueColor}">📅 ${esc(t.dueDate)}</span>` : ''}
+            ${t.assignee ? `<span>👤 ${esc(t.assignee)}</span>` : ''}
+            ${t.status === 'In progress' ? `<span style="color:var(--info);font-weight:600;">● In progress</span>` : ''}
+            ${(t.status === 'Blocked' || blocker) ? `<span style="color:var(--danger);font-weight:600;">⚠️ Blocked</span>` : ''}
+          </div>
+        </div>
+        <div class="ms-todo-row-right">
+          ${t.priority === 'High' ? `<span style="color:var(--danger);font-size:0.95rem;" title="High priority">★</span>` : ''}
+          <span class="badge b-cat" style="font-size:0.68rem;">${esc(t.category)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  let detailHtml = '';
+  if (selectedTask) {
+    const t = selectedTask;
+    const proj = getProject(t.projectId);
+    const stage = getStage(proj, t.stageId);
+    const isDone = t.status === 'Done';
+    const subs = t.subtasks || [];
+    const doneSubs = subs.filter(s => s.status === 'Done').length;
+    const pct = subs.length ? Math.round((doneSubs / subs.length) * 100) : 0;
+    const running = isTimerRunningFor(t.id, null);
+    const blocker = isTaskBlockedByUnfinished(t);
+    const plannedFlag = isTaskPlanned(t);
+    const tAssigneeMeta = t.assignee ? getAssigneeMeta(t.assignee) : null;
+    const tTeam = t.assignee ? ((tAssigneeMeta?.team || '').trim()) : getMyTeam();
+
+    detailHtml = `
+      <aside class="ms-todo-detail-pane">
+        <div class="ms-todo-detail-head">
+          <button type="button" class="ms-todo-check ${isDone ? 'checked' : ''}"
+            onclick="toggleTaskDone('${t.id}')"
+            title="${isDone ? 'Mark as To do' : 'Mark as Done'}">✓</button>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:1rem;line-height:1.3;${isDone ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(t.title)}</div>
+            <div style="font-size:0.76rem;color:var(--text-muted);margin-top:3px;">
+              📁 ${esc(proj ? proj.name : 'Unknown')}${stage ? ` › ${esc(stage.name)}` : ''}
+            </div>
+          </div>
+          <button type="button" class="btn btn-xs btn-ghost" onclick="closeTodoDetailPane()" title="Close details pane">✕</button>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">
+          <span class="badge ${statusBadgeClass(t.status)}">${esc(t.status)}</span>
+          <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
+          <span class="badge b-cat">${esc(t.category)}</span>
+          <span class="badge ${plannedFlag ? 'b-progress' : 'b-todo'}">${plannedFlag ? '🗓️ Planned' : '📋 Non-planned'}</span>
+          ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
+          ${tTeam ? `<span class="badge b-cat">🏷️ ${esc(tTeam)}</span>` : ''}
+          ${t.dueDate ? `<span class="badge b-todo">📅 Due ${esc(t.dueDate)}</span>` : ''}
+          ${t.plannedDate ? `<span class="badge b-todo">🗓 ${esc(t.plannedDate)}${t.plannedStartTime ? ' ' + esc(t.plannedStartTime) : ''}</span>` : ''}
+          ${blocker ? `<span class="badge b-warn">⚠️ Blocked by: ${esc(blocker.title)}</span>` : ''}
+        </div>
+
+        ${renderIntegrationActions(t, null)}
+
+        <div class="ms-todo-section" style="margin-top:10px;">
+          <div class="ms-todo-section-title">
+            <span>📝 Description</span>
+            <button type="button" class="btn btn-xs btn-ghost" onclick="openTaskModal('${t.id}')">Edit</button>
+          </div>
+          ${t.description
+            ? `<div class="rte-rendered" style="font-size:0.85rem;color:var(--text);">${sanitizeNoteHtml(t.description)}</div>`
+            : `<div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">No description yet. Click Edit to add details.</div>`}
+        </div>
+
+        <div class="ms-todo-section">
+          <div class="ms-todo-section-title">
+            <span>☑️ Subtasks (${doneSubs}/${subs.length})</span>
+            <button type="button" class="btn btn-xs btn-ghost" onclick="openSubtaskModal('${t.id}')">+ Detailed</button>
+          </div>
+          ${subs.length > 0 ? `
+            <div class="progress-wrap" style="margin-top:0;margin-bottom:8px;">
+              <div class="progress-track" style="max-width:none;"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <span class="progress-text">${pct}%</span>
+            </div>
+            <div>
+              ${subs.map(sub => {
+                const sDone = sub.status === 'Done';
+                const subRunning = isTimerRunningFor(t.id, sub.id);
+                return `
+                  <div class="ms-todo-step-row">
+                    <button type="button" class="ms-todo-check ${sDone ? 'checked' : ''}"
+                      style="width:17px;height:17px;font-size:0.66rem;"
+                      onclick="toggleSubtaskDone('${t.id}','${sub.id}')"
+                      title="${sDone ? 'Mark To do' : 'Mark Done'}">✓</button>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-weight:600;${sDone ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(sub.title)}</div>
+                      ${sub.description ? `<div class="rte-rendered" style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">${sanitizeNoteHtml(sub.description)}</div>` : ''}
+                      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;font-size:0.72rem;color:var(--text-muted);align-items:center;">
+                        ${sub.assignee ? `<span class="badge b-assignee" style="font-size:0.68rem;">👤 ${esc(sub.assignee)}</span>` : ''}
+                        ${sub.dueDate ? `<span>📅 ${esc(sub.dueDate)}</span>` : ''}
+                        ${subRunning
+                          ? `<button type="button" class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹</button>`
+                          : `<button type="button" class="btn btn-xs btn-ghost" onclick="startTimer('${t.id}','${sub.id}')" title="Start timer">▶</button>`}
+                        <button type="button" class="btn btn-xs btn-ghost" onclick="openSubtaskModal('${t.id}','${sub.id}')" title="Edit subtask">✎</button>
+                        <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteSubtask('${t.id}','${sub.id}')" title="Delete subtask">✕</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `<div style="font-size:0.8rem;color:var(--text-muted);">No subtasks yet.</div>`}
+          <form class="ms-todo-add-step" onsubmit="addQuickTodoSubtask(event, '${t.id}')">
+            <input type="text" id="todoQuickStepInput" placeholder="+ Add step (press Enter)..." />
+            <button type="submit" class="btn btn-xs btn-primary">Add</button>
+          </form>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            ${running
+              ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
+              : `<button class="btn btn-xs" onclick="startTimer('${t.id}')">▶ Start</button>`}
+            <button class="btn btn-xs" onclick="openTaskModal('${t.id}')">Edit Task</button>
+            <button class="btn btn-xs" onclick="duplicateTask('${t.id}')">📋 Copy</button>
+          </div>
+          <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteTask('${t.id}')">Delete</button>
+        </div>
+      </aside>
+    `;
+  }
+
+  return `
+    <div class="ms-todo-layout ${selectedTask ? '' : 'no-detail'}">
+      <div class="ms-todo-list-pane">
+        ${rowsHtml}
+      </div>
+      ${detailHtml}
+    </div>
+  `;
 }
 
 function renderKanban(tasks) {
@@ -9140,7 +9521,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.22';
+const CADENCE_VERSION = 'v1.23';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
