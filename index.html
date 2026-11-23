@@ -1741,7 +1741,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.19</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.20</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1778,7 +1778,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.19 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.20 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -5523,17 +5523,12 @@ function rteTableAction(editorId, action) {
 
 function parsePlainTabularText(text) {
   if (!text) return null;
-  const trimmed = text.replace(/
-/g, '
-').replace(/
-/g, '
-').trim();
+  const trimmed = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   if (!trimmed) return null;
-  const lines = trimmed.split('
-');
+  const lines = trimmed.split('\n');
 
   // 1. Check for Tab-Separated Values (Excel / Google Sheets / SQL / TSV)
-  const hasTabs = lines.some(l => l.includes('	'));
+  const hasTabs = lines.some(l => l.includes('\t'));
   if (hasTabs) {
     const rows = [];
     let currentRow = [];
@@ -5548,11 +5543,10 @@ function parsePlainTabularText(text) {
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (ch === '	' && !inQuotes) {
+      } else if (ch === '\t' && !inQuotes) {
         currentRow.push(currentCell);
         currentCell = '';
-      } else if (ch === '
-' && !inQuotes) {
+      } else if (ch === '\n' && !inQuotes) {
         currentRow.push(currentCell);
         rows.push(currentRow);
         currentRow = [];
@@ -5567,8 +5561,7 @@ function parsePlainTabularText(text) {
     if (maxCols >= 2) return rows;
   }
 
-  // 2. Check for Markdown pipe tables (| Col A | Col B | 
- | --- | --- |)
+  // 2. Check for Markdown pipe tables (| Col A | Col B | / | --- | --- |)
   if (lines.length >= 2 && lines[0].includes('|') && /^\s*\|?[\s:-]+\|[\s|:-]*$/.test(lines[1])) {
     const splitPipe = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
     const header = splitPipe(lines[0]);
@@ -9122,7 +9115,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.19';
+const CADENCE_VERSION = 'v1.20';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
