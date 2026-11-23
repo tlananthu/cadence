@@ -1341,19 +1341,24 @@
   
   
   
-  /* Tasks View UX Overhaul: Implementation Command Center */
+  /* Tasks View UX: 2-Tier Triage-First Header */
   .tasks-cmd-bar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 10px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 8px 12px;
+    padding: 10px 14px;
     margin-bottom: 10px;
     box-shadow: var(--shadow);
+  }
+  .tasks-tier-1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
   }
   .tasks-cmd-left, .tasks-cmd-right {
     display: flex;
@@ -1361,19 +1366,122 @@
     flex-wrap: wrap;
     gap: 8px;
   }
+  .tasks-cmd-left {
+    flex: 1 1 320px;
+    min-width: 0;
+  }
   .tasks-cmd-search {
-    min-width: 210px;
-    max-width: 280px;
+    flex: 1 1 200px;
+    min-width: 180px;
+    max-width: 300px;
     padding: 6px 10px !important;
     font-size: 0.84rem !important;
   }
   .tasks-cmd-select {
     width: auto !important;
-    min-width: 140px;
-    max-width: 210px;
+    min-width: 150px;
+    max-width: 230px;
     padding: 6px 9px !important;
     font-size: 0.82rem !important;
+    font-weight: 600;
   }
+  .tasks-tier-2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 9px;
+    border-top: 1px solid var(--border);
+  }
+  .triage-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .triage-group-label {
+    font-size: 0.69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-right: 2px;
+  }
+  .triage-seg {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 3px;
+  }
+  .triage-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.14s ease;
+    white-space: nowrap;
+  }
+  .triage-pill:hover {
+    color: var(--text);
+    background: var(--surface);
+  }
+  .triage-pill.active {
+    background: var(--surface);
+    color: var(--primary);
+    border-color: rgba(79, 70, 229, 0.35);
+    box-shadow: var(--shadow);
+  }
+  .triage-pill.urg-overdue.active {
+    color: var(--danger);
+    border-color: rgba(239, 68, 68, 0.4);
+    background: var(--danger-soft);
+  }
+  .triage-pill.urg-today.active {
+    color: var(--info);
+    border-color: rgba(14, 165, 233, 0.4);
+    background: var(--info-soft);
+  }
+  .triage-pill.urg-blocked.active {
+    color: var(--warning);
+    border-color: rgba(245, 158, 11, 0.45);
+    background: var(--warning-soft);
+  }
+  .triage-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    background: var(--border);
+    color: var(--text);
+  }
+  .triage-count.is-danger { background: var(--danger-soft); color: var(--danger); }
+  .triage-count.is-info { background: var(--info-soft); color: var(--info); }
+  .triage-count.is-warn { background: var(--warning-soft); color: var(--warning); }
+  .triage-pill.active .triage-count {
+    background: var(--primary);
+    color: #fff;
+  }
+  .triage-pill.urg-overdue.active .triage-count { background: var(--danger); color: #fff; }
+  .triage-pill.urg-today.active .triage-count { background: var(--info); color: #fff; }
+  .triage-pill.urg-blocked.active .triage-count { background: var(--warning); color: #fff; }
+
   .active-filter-pills {
     display: flex;
     align-items: center;
@@ -1412,11 +1520,11 @@
   }
   .tasks-drawer-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+    gap: 10px;
   }
   .tasks-drawer-grid label {
-    font-size: 0.72rem;
+    font-size: 0.71rem;
     color: var(--text-muted);
     margin-bottom: 3px;
     text-transform: uppercase;
@@ -1425,52 +1533,6 @@
   .tasks-drawer-grid select {
     padding: 6px 8px;
     font-size: 0.82rem;
-  }
-
-  /* Compact Implementation Pulse Strip inside Top Filter Block */
-  .impl-pulse-grid {
-    flex: 1 1 100%;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 6px;
-    padding-top: 8px;
-    border-top: 1px dashed var(--border);
-  }
-  .pulse-tile {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .pulse-tile:hover {
-    border-color: var(--primary);
-  }
-  .pulse-tile.active {
-    border-color: var(--primary);
-    background: var(--primary-soft);
-  }
-  .pulse-tile-label {
-    font-size: 0.74rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .pulse-tile-sub {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-  }
-  .pulse-tile-num {
-    font-size: 1.25rem;
-    font-weight: 800;
-    line-height: 1.1;
   }
 
   /* Compact Horizontal Assignee Ribbon (replaces tall grid) */
@@ -1904,7 +1966,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.23</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.24</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1941,7 +2003,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.23 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.24 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3407,13 +3469,12 @@ function deleteSavedTaskPreset(presetId) {
 function countActiveExtraFilters() {
   const f = state.ui.taskFilters || {};
   let cnt = 0;
-  if (f.stageId) cnt++;
-  if (f.category) cnt++;
-  if (f.status && f.status !== '__open__') cnt++;
   if (f.team) cnt++;
-  if (f.planned) cnt++;
+  if (f.stageId) cnt++;
+  if (f.status !== '__open__' && f.status !== 'Blocked') cnt++;
   if (f.priority) cnt++;
-  if (f.due) cnt++;
+  if (f.category) cnt++;
+  if (f.planned) cnt++;
   return cnt;
 }
 
@@ -3763,7 +3824,7 @@ function renderActiveFilterPills() {
   `;
 }
 
-function renderImplementationPulseBar() {
+function renderTriageStrip() {
   const f = state.ui.taskFilters;
   const today = todayStr();
   const baseTasks = state.tasks.filter(t => (!f.projectId || t.projectId === f.projectId) && (!f.team || (function() {
@@ -3775,45 +3836,64 @@ function renderImplementationPulseBar() {
     return m(t.assignee) || (t.subtasks || []).some(s => m(s.assignee));
   })()));
 
-  const openCount = baseTasks.filter(t => t.status !== 'Done').length;
-  const overdueCount = baseTasks.filter(t => t.status !== 'Done' && t.dueDate && t.dueDate < today).length;
-  const blockedCount = baseTasks.filter(t => t.status === 'Blocked' || isTaskBlockedByUnfinished(t)).length;
-  const dueTodayCount = baseTasks.filter(t => t.status !== 'Done' && t.dueDate === today).length;
+  const openBase = baseTasks.filter(t => t.status !== 'Done');
+  const allOpenCount = openBase.length;
+  const myOrUnassignedCount = openBase.filter(t => !(t.assignee || '').trim()).length;
+  const delegatedCount = openBase.filter(t => Boolean((t.assignee || '').trim()) || (t.subtasks || []).some(s => Boolean((s.assignee || '').trim()))).length;
 
-  const isOpenActive = f.status === '__open__' && !f.due;
+  const selAssignees = getSelectedAssignees();
+  const isAllOwn = selAssignees.length === 0;
+  const isMyOwn = selAssignees.length === 1 && selAssignees[0] === '__me__';
+  const isDelOwn = selAssignees.length === 1 && selAssignees[0] === '__delegated__';
+
+  // Scope urgency counts to the currently selected ownership filter so numbers match what the user sees
+  const urgencyPool = selAssignees.length > 0
+    ? baseTasks.filter(t => selAssignees.some(tok => matchesAssigneeToken(t.assignee, tok) || (t.subtasks || []).some(s => matchesAssigneeToken(s.assignee, tok))))
+    : baseTasks;
+
+  const overdueCount = urgencyPool.filter(t => t.status !== 'Done' && t.dueDate && t.dueDate < today).length;
+  const dueTodayCount = urgencyPool.filter(t => t.status !== 'Done' && t.dueDate === today).length;
+  const blockedCount = urgencyPool.filter(t => t.status === 'Blocked' || (t.status !== 'Done' && isTaskBlockedByUnfinished(t))).length;
+  const openCount = urgencyPool.filter(t => t.status !== 'Done').length;
+
   const isOverdueActive = f.due === 'overdue';
-  const isBlockedActive = f.status === 'Blocked';
   const isTodayActive = f.due === 'today';
+  const isBlockedActive = f.status === 'Blocked' && !f.due;
+  const isOpenActive = f.status === '__open__' && !f.due;
 
   return `
-    <div class="impl-pulse-grid">
-      <div class="pulse-tile ${isOverdueActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='overdue'?'':'overdue');state.ui.taskFilters.status='__open__';render()" title="Filter overdue tasks">
-        <div>
-          <div class="pulse-tile-label" style="color:${overdueCount ? 'var(--danger)' : 'var(--text-muted)'}">Overdue</div>
-          <div class="pulse-tile-sub">Past due date</div>
+    <div class="tasks-tier-2">
+      <div class="triage-group">
+        <span class="triage-group-label">Queue</span>
+        <div class="triage-seg" role="group" aria-label="Ownership queue">
+          <button type="button" class="triage-pill ${isAllOwn ? 'active' : ''}" onclick="state.ui.taskFilters.assignees=[];render()" title="Show all open tasks across the project">
+            All <span class="triage-count">${allOpenCount}</span>
+          </button>
+          <button type="button" class="triage-pill ${isMyOwn ? 'active' : ''}" onclick="state.ui.taskFilters.assignees=['__me__'];render()" title="Tasks not yet delegated to a colleague — ready for you to work on or assign to the team">
+            My / Unassigned <span class="triage-count ${myOrUnassignedCount ? 'is-info' : ''}">${myOrUnassignedCount}</span>
+          </button>
+          <button type="button" class="triage-pill ${isDelOwn ? 'active' : ''}" onclick="state.ui.taskFilters.assignees=['__delegated__'];render()" title="Tasks or subtasks currently assigned to team members">
+            Delegated <span class="triage-count">${delegatedCount}</span>
+          </button>
         </div>
-        <div class="pulse-tile-num" style="color:${overdueCount ? 'var(--danger)' : 'var(--text)'}">${overdueCount}</div>
       </div>
-      <div class="pulse-tile ${isTodayActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='today'?'':'today');state.ui.taskFilters.status='__open__';render()" title="Filter tasks due today">
-        <div>
-          <div class="pulse-tile-label" style="color:var(--info)">Due Today</div>
-          <div class="pulse-tile-sub">${today}</div>
+
+      <div class="triage-group">
+        <span class="triage-group-label">Focus</span>
+        <div class="triage-seg" role="group" aria-label="Urgency and health">
+          <button type="button" class="triage-pill urg-overdue ${isOverdueActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='overdue'?'':'overdue');state.ui.taskFilters.status='__open__';render()" title="Past due date">
+            Overdue <span class="triage-count ${overdueCount ? 'is-danger' : ''}">${overdueCount}</span>
+          </button>
+          <button type="button" class="triage-pill urg-today ${isTodayActive ? 'active' : ''}" onclick="state.ui.taskFilters.due=(state.ui.taskFilters.due==='today'?'':'today');state.ui.taskFilters.status='__open__';render()" title="Due today (${today})">
+            Due Today <span class="triage-count ${dueTodayCount ? 'is-info' : ''}">${dueTodayCount}</span>
+          </button>
+          <button type="button" class="triage-pill urg-blocked ${isBlockedActive ? 'active' : ''}" onclick="state.ui.taskFilters.due='';state.ui.taskFilters.status=(state.ui.taskFilters.status==='Blocked'?'__open__':'Blocked');render()" title="Blocked or waiting on dependencies">
+            Blocked / At Risk <span class="triage-count ${blockedCount ? 'is-warn' : ''}">${blockedCount}</span>
+          </button>
+          <button type="button" class="triage-pill ${isOpenActive ? 'active' : ''}" onclick="state.ui.taskFilters.status='__open__';state.ui.taskFilters.due='';render()" title="All open implementation items">
+            Open Scope <span class="triage-count">${openCount}</span>
+          </button>
         </div>
-        <div class="pulse-tile-num" style="color:var(--info)">${dueTodayCount}</div>
-      </div>
-      <div class="pulse-tile ${isBlockedActive ? 'active' : ''}" onclick="state.ui.taskFilters.status=(state.ui.taskFilters.status==='Blocked'?'__open__':'Blocked');render()" title="Filter blocked tasks">
-        <div>
-          <div class="pulse-tile-label" style="color:${blockedCount ? 'var(--warning)' : 'var(--text-muted)'}">Blocked / At Risk</div>
-          <div class="pulse-tile-sub">Needs escalation</div>
-        </div>
-        <div class="pulse-tile-num" style="color:${blockedCount ? 'var(--warning)' : 'var(--text)'}">${blockedCount}</div>
-      </div>
-      <div class="pulse-tile ${isOpenActive ? 'active' : ''}" onclick="state.ui.taskFilters.status='__open__';state.ui.taskFilters.due='';render()" title="Show all open tasks">
-        <div>
-          <div class="pulse-tile-label">Open Scope</div>
-          <div class="pulse-tile-sub">Active implementation items</div>
-        </div>
-        <div class="pulse-tile-num">${openCount}</div>
       </div>
     </div>
   `;
@@ -3829,43 +3909,47 @@ function renderTasks(el) {
 
   el.innerHTML = `
     <div class="tasks-cmd-bar">
-      <div class="tasks-cmd-left">
-        <input type="text" id="taskSearchInput" class="tasks-cmd-search" placeholder="🔍 Search task, ref, or person..." value="${esc(f.search)}" oninput="state.ui.taskFilters.search=this.value;refreshTaskResults()" />
-        <select class="tasks-cmd-select" onchange="state.ui.taskFilters.projectId=this.value;state.ui.taskFilters.stageId='';render()" title="Filter by Project">
-          <option value="">All Projects</option>
-          ${state.projects.map(p => `<option value="${p.id}" ${f.projectId === p.id ? 'selected' : ''}>${p.isDefault ? '⭐ ' : ''}${esc(p.name)}</option>`).join('')}
-        </select>
-        <select class="tasks-cmd-select" onchange="state.ui.taskFilters.team=this.value;render()" title="Filter by Team">
-          <option value="" ${!f.team ? 'selected' : ''}>All Teams</option>
-          <option value="__unassigned__" ${f.team === '__unassigned__' ? 'selected' : ''}>No Team</option>
-          ${getAllTeams().map(tm => `<option value="${esc(tm)}" ${f.team === tm ? 'selected' : ''}>🏷️ ${esc(tm)}</option>`).join('')}
-        </select>
-        <button type="button" class="btn btn-sm ${state.ui.showMoreFilters || extraFilterCount ? 'btn-primary' : ''}" onclick="state.ui.showMoreFilters=!state.ui.showMoreFilters;render()">
-          🎛️ Filters${extraFilterCount ? ` (${extraFilterCount})` : ''}
-        </button>
-      </div>
+      <div class="tasks-tier-1">
+        <div class="tasks-cmd-left">
+          <select class="tasks-cmd-select" onchange="state.ui.taskFilters.projectId=this.value;state.ui.taskFilters.stageId='';render()" title="Filter by Project">
+            <option value="">All Projects</option>
+            ${state.projects.map(p => `<option value="${p.id}" ${f.projectId === p.id ? 'selected' : ''}>${p.isDefault ? '⭐ ' : ''}${esc(p.name)}</option>`).join('')}
+          </select>
+          <input type="text" id="taskSearchInput" class="tasks-cmd-search" placeholder="🔍 Search task, ref, or person..." value="${esc(f.search)}" oninput="state.ui.taskFilters.search=this.value;refreshTaskResults()" />
+        </div>
 
-      <div class="tasks-cmd-right">
-        ${!state.ui.showAssigneeStrip ? `<button type="button" class="btn btn-sm" onclick="state.ui.showAssigneeStrip=true;render()" title="Show team member workload bar">👥 Team Bar</button>` : ''}
-        <div class="views-popover-wrap">
-          <button type="button" class="btn btn-sm ${activePreset ? 'btn-primary' : ''}" onclick="event.stopPropagation();state.ui.showViewsMenu=!state.ui.showViewsMenu;render()" title="Saved views & default filter">
-            🔖 ${activePreset ? esc(activePreset.name) : 'Views'}${presetCount ? ` (${presetCount})` : ''} ▾
+        <div class="tasks-cmd-right">
+          ${!state.ui.showAssigneeStrip ? `<button type="button" class="btn btn-sm" onclick="state.ui.showAssigneeStrip=true;render()" title="Show team member workload bar">👥 Team Bar</button>` : ''}
+          <button type="button" class="btn btn-sm ${state.ui.showMoreFilters || extraFilterCount ? 'btn-primary' : ''}" onclick="state.ui.showMoreFilters=!state.ui.showMoreFilters;render()" title="Filter by team, stage, status, priority, category, or planning type">
+            🎛️ More Filters${extraFilterCount ? ` (${extraFilterCount})` : ''}
           </button>
-          ${renderSavedViewsPopover()}
+          <div class="views-popover-wrap">
+            <button type="button" class="btn btn-sm ${activePreset ? 'btn-primary' : ''}" onclick="event.stopPropagation();state.ui.showViewsMenu=!state.ui.showViewsMenu;render()" title="Saved views & default filter">
+              🔖 ${activePreset ? esc(activePreset.name) : 'Views'}${presetCount ? ` (${presetCount})` : ''} ▾
+            </button>
+            ${renderSavedViewsPopover()}
+          </div>
+          <div class="tab-switch">
+            <button class="tab-btn ${state.ui.taskViewMode === 'list' ? 'active' : ''}" onclick="state.ui.taskViewMode='list';render()">📋 List</button>
+            <button class="tab-btn ${state.ui.taskViewMode === 'todo' ? 'active' : ''}" onclick="state.ui.taskViewMode='todo';render()">☑️ To-Do</button>
+            <button class="tab-btn ${state.ui.taskViewMode === 'kanban' ? 'active' : ''}" onclick="state.ui.taskViewMode='kanban';render()">🗂️ Kanban</button>
+          </div>
         </div>
-        <div class="tab-switch">
-          <button class="tab-btn ${state.ui.taskViewMode === 'list' ? 'active' : ''}" onclick="state.ui.taskViewMode='list';render()">📋 List</button>
-          <button class="tab-btn ${state.ui.taskViewMode === 'todo' ? 'active' : ''}" onclick="state.ui.taskViewMode='todo';render()">☑️ To-Do</button>
-          <button class="tab-btn ${state.ui.taskViewMode === 'kanban' ? 'active' : ''}" onclick="state.ui.taskViewMode='kanban';render()">🗂️ Kanban</button>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openQuickAddTaskModal()">+ New Task</button>
       </div>
-      ${renderImplementationPulseBar()}
+      ${renderTriageStrip()}
     </div>
 
     ${state.ui.showMoreFilters ? `
       <div class="tasks-drawer">
         <div class="tasks-drawer-grid">
+          <div>
+            <label>Team</label>
+            <select onchange="state.ui.taskFilters.team=this.value;render()">
+              <option value="" ${!f.team ? 'selected' : ''}>All Teams</option>
+              <option value="__unassigned__" ${f.team === '__unassigned__' ? 'selected' : ''}>No Team</option>
+              ${getAllTeams().map(tm => `<option value="${esc(tm)}" ${f.team === tm ? 'selected' : ''}>🏷️ ${esc(tm)}</option>`).join('')}
+            </select>
+          </div>
           ${selectedProj ? `
             <div>
               <label>Stage</label>
@@ -3881,16 +3965,6 @@ function renderTasks(el) {
               <option value="__open__" ${f.status === '__open__' ? 'selected' : ''}>All Open</option>
               <option value="" ${f.status === '' ? 'selected' : ''}>All (incl. Done)</option>
               ${STATUSES.map(s => `<option value="${s}" ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label>Due Window</label>
-            <select onchange="state.ui.taskFilters.due=this.value;render()">
-              <option value="">Any Due Date</option>
-              <option value="overdue" ${f.due === 'overdue' ? 'selected' : ''}>Overdue</option>
-              <option value="today" ${f.due === 'today' ? 'selected' : ''}>Due Today</option>
-              <option value="week" ${f.due === 'week' ? 'selected' : ''}>Due This Week</option>
-              <option value="none" ${f.due === 'none' ? 'selected' : ''}>No Due Date</option>
             </select>
           </div>
           <div>
@@ -3913,24 +3987,6 @@ function renderTasks(el) {
               <option value="" ${!f.planned ? 'selected' : ''}>All Types</option>
               <option value="planned" ${f.planned === 'planned' ? 'selected' : ''}>🗓️ Planned Only</option>
               <option value="nonplanned" ${f.planned === 'nonplanned' ? 'selected' : ''}>📋 Non-planned Only</option>
-            </select>
-          </div>
-          <div>
-            <label>Quick Assignee</label>
-            <select onchange="state.ui.taskFilters.assignees=this.value?[this.value]:[];render()">
-              <option value="" ${getSelectedAssignees().length === 0 ? 'selected' : ''}>${getSelectedAssignees().length > 1 ? `Multiple (${getSelectedAssignees().length})` : 'All Assignees'}</option>
-              <option value="__me__" ${getSelectedAssignees().length === 1 && getSelectedAssignees()[0] === '__me__' ? 'selected' : ''}>Assigned to Me</option>
-              <option value="__delegated__" ${getSelectedAssignees().length === 1 && getSelectedAssignees()[0] === '__delegated__' ? 'selected' : ''}>All Delegated</option>
-              ${getAllAssignees(true).filter(c => {
-                if (!f.projectId) return true;
-                const st = computeAssigneeStats(n => n.toLowerCase() === c.toLowerCase(), todayStr(), f.projectId);
-                const sel = getSelectedAssignees().some(x => x.toLowerCase() === c.toLowerCase());
-                return st.total > 0 || sel;
-              }).map(c => {
-                const sel = getSelectedAssignees().length === 1 && getSelectedAssignees()[0].toLowerCase() === c.toLowerCase();
-                const tm = (getAssigneeMeta(c)?.team || '').trim();
-                return `<option value="${esc(c)}" ${sel ? 'selected' : ''}>${esc(c)}${tm ? ` (${esc(tm)})` : ''}</option>`;
-              }).join('')}
             </select>
           </div>
         </div>
@@ -9521,7 +9577,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.23';
+const CADENCE_VERSION = 'v1.24';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
