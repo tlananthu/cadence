@@ -1702,7 +1702,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.15</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.18</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1739,7 +1739,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.15 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.18 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2526,6 +2526,20 @@ function render() {
 }
 
 // ===================== 1. TODAY VIEW =====================
+function openTasksFromToday({ due = '', status = '__open__', projectId = '', search = '' } = {}) {
+  const f = state.ui.taskFilters;
+  f.due = due || '';
+  f.status = status !== undefined ? status : '__open__';
+  if (projectId !== undefined) {
+    f.projectId = projectId || '';
+    f.stageId = '';
+  }
+  if (search !== undefined) f.search = search || '';
+  f.defaultApplied = true;
+  state.ui.activeTaskPresetId = '';
+  switchView('tasks');
+}
+
 function renderToday(el) {
   const today = todayStr();
   const overdue = state.tasks.filter(t => t.status !== 'Done' && t.dueDate && t.dueDate < today);
@@ -2578,20 +2592,20 @@ function renderToday(el) {
 
 
     <div class="grid-4" style="margin-bottom:18px;">
-      <div class="kpi-card">
+      <div class="kpi-card" style="cursor:pointer;" onclick="openTasksFromToday({ due: 'overdue', status: '__open__' })" title="View overdue tasks on the Tasks page">
         <div class="kpi-label">Overdue</div>
         <div class="kpi-value" style="color:${overdue.length ? 'var(--danger)' : 'var(--text)'}">${overdue.length}</div>
-        <div class="kpi-sub">Needs attention</div>
+        <div class="kpi-sub">Needs attention • View in Tasks →</div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" style="cursor:pointer;" onclick="openTasksFromToday({ due: 'today', status: '__open__' })" title="View tasks due today on the Tasks page">
         <div class="kpi-label">Due Today</div>
         <div class="kpi-value">${dueToday.length}</div>
-        <div class="kpi-sub">${today}</div>
+        <div class="kpi-sub">${today} • View in Tasks →</div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" style="cursor:pointer;" onclick="openTasksFromToday({ due: '', status: 'In progress' })" title="View in-progress tasks on the Tasks page">
         <div class="kpi-label">In Progress</div>
         <div class="kpi-value" style="color:var(--info)">${inProgress.length}</div>
-        <div class="kpi-sub">Active right now</div>
+        <div class="kpi-sub">Active right now • View in Tasks →</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Planned vs Actual (Today)</div>
@@ -2651,15 +2665,24 @@ function renderToday(el) {
 
     <div class="grid-3">
       <div class="card">
-        <div class="card-header"><div class="card-title" style="color:var(--danger)">🔥 Overdue (${overdue.length})</div></div>
+        <div class="card-header">
+          <div class="card-title" style="color:var(--danger)">🔥 Overdue (${overdue.length})</div>
+          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: 'overdue', status: '__open__' })" title="Open overdue tasks in Tasks view">Tasks →</button>
+        </div>
         ${overdue.length ? overdue.map(t => renderCompactTaskCard(t)).join('') : '<div class="empty-state">No overdue tasks. Nice work!</div>'}
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">📌 Due Today (${dueToday.length})</div></div>
+        <div class="card-header">
+          <div class="card-title">📌 Due Today (${dueToday.length})</div>
+          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: 'today', status: '__open__' })" title="Open tasks due today in Tasks view">Tasks →</button>
+        </div>
         ${dueToday.length ? dueToday.map(t => renderCompactTaskCard(t)).join('') : '<div class="empty-state">No tasks due today.</div>'}
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title" style="color:var(--info)">⚡ In Progress (${inProgress.length})</div></div>
+        <div class="card-header">
+          <div class="card-title" style="color:var(--info)">⚡ In Progress (${inProgress.length})</div>
+          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: '', status: 'In progress' })" title="Open in-progress tasks in Tasks view">Tasks →</button>
+        </div>
         ${inProgress.length ? inProgress.map(t => renderCompactTaskCard(t)).join('') : '<div class="empty-state">No tasks marked In progress.</div>'}
       </div>
     </div>
@@ -2680,7 +2703,7 @@ function renderCompactTaskCard(t) {
         ${blocker ? `<span class="badge b-warn" title="Blocked by unfinished task: ${esc(blocker.title)}">⚠️ Blocked</span>` : ''}
       </div>
       <div class="task-meta">
-        <span>📁 ${esc(proj ? proj.name : 'No project')}</span>
+        <button type="button" class="btn-int" onclick="openTasksFromToday({ projectId: '${esc(t.projectId || '')}', status: '__open__' })" title="Filter Tasks by project">📁 ${esc(proj ? proj.name : 'No project')} →</button>
         <span class="badge b-cat">${esc(t.category)}</span>
         ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
         <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
@@ -2691,6 +2714,7 @@ function renderCompactTaskCard(t) {
         ${running
           ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
           : `<button class="btn btn-xs" onclick="startTimer('${t.id}')">▶ Timer</button>`}
+        <button class="btn btn-xs" onclick="openTasksFromToday({ search: '${esc(t.title).replace(/'/g, "\'")}', status: '' })" title="View task on Tasks page">Tasks →</button>
         <button class="btn btn-xs" onclick="openTaskModal('${t.id}')">Edit</button>
       </div>
     </div>
@@ -4331,90 +4355,117 @@ function updateSubtaskCategoryHint() {
 }
 
 function saveTaskForm(e, taskId) {
-  e.preventDefault();
-  const payload = {
-    projectId: document.getElementById('tProject').value,
-    stageId: document.getElementById('tStage').value,
-    title: document.getElementById('tTitle').value.trim(),
-    assignee: (document.getElementById('tAssignee')?.value || '').trim(),
-    description: sanitizeNoteHtml(document.getElementById('tDesc')?.innerHTML || ''),
-    status: document.getElementById('tStatus').value,
-    priority: document.getElementById('tPriority').value,
-    dueDate: document.getElementById('tDue').value,
-    category: document.getElementById('tCategory').value,
-    billableOverride: document.getElementById('tBillable').value,
-    externalRef: document.getElementById('tExternalRef').value.trim(),
-    blockedByTaskId: document.getElementById('tBlockedBy').value,
-    plannedDate: document.getElementById('tPlannedDate').value,
-    plannedStartTime: document.getElementById('tPlannedTime').value,
-    estimatedHours: Number(document.getElementById('tEstHours').value || 0),
-    plannedStatus: (function() {
-      const selVal = document.getElementById('tPlannedStatus')?.value || 'nonplanned';
-      const pDate = document.getElementById('tPlannedDate')?.value || '';
-      if (pDate && selVal === 'nonplanned' && !taskId) return 'planned';
-      return selVal;
-    })(),
-    learningProgress: Number(document.getElementById('tLearningProgress')?.value || 0),
-    recurrence: document.getElementById('tRecurrence').value || 'none'
-  };
-  const builtSubtasks = (tempTaskSubtaskRows || [])
-    .filter(r => (r.title || '').trim())
-    .map(r => {
-      const cleanTitle = (r.title || '').trim();
-      const cleanDesc = (r.description || '').trim();
-      const cleanAssignee = (r.assignee || '').trim();
-      const cleanStatus = r.status || 'To do';
-      const orig = (r.id && t)
-        ? (t.subtasks || []).find(s => s.id === r.id)
-        : null;
-      if (cleanAssignee) ensureAssigneeRecord(cleanAssignee);
-      if (orig) {
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+  try {
+    const cleanId = (typeof taskId === 'string') ? taskId.trim() : '';
+    const existingTask = cleanId ? getTask(cleanId) : null;
+    const defProj = getDefaultProject();
+    const projectId = (document.getElementById('tProject')?.value || defProj?.id || state.projects[0]?.id || '').trim();
+    const stageId = (document.getElementById('tStage')?.value || '').trim();
+    const title = (document.getElementById('tTitle')?.value || '').trim();
+    if (!title) {
+      alert('Please enter a task title.');
+      document.getElementById('tTitle')?.focus();
+      return;
+    }
+
+    const rawDescHtml = document.getElementById('tDesc')?.innerHTML || '';
+    const safeDesc = (typeof sanitizeNoteHtml === 'function') ? sanitizeNoteHtml(rawDescHtml) : rawDescHtml;
+
+    const payload = {
+      projectId,
+      stageId,
+      title,
+      assignee: (document.getElementById('tAssignee')?.value || '').trim(),
+      description: safeDesc,
+      status: document.getElementById('tStatus')?.value || 'To do',
+      priority: document.getElementById('tPriority')?.value || 'Medium',
+      dueDate: document.getElementById('tDue')?.value || '',
+      category: document.getElementById('tCategory')?.value || 'Jira',
+      billableOverride: document.getElementById('tBillable')?.value || 'inherit',
+      externalRef: (document.getElementById('tExternalRef')?.value || '').trim(),
+      blockedByTaskId: document.getElementById('tBlockedBy')?.value || '',
+      plannedDate: document.getElementById('tPlannedDate')?.value || '',
+      plannedStartTime: document.getElementById('tPlannedTime')?.value || '',
+      estimatedHours: Number(document.getElementById('tEstHours')?.value || 0),
+      plannedStatus: (function() {
+        const selVal = document.getElementById('tPlannedStatus')?.value || 'nonplanned';
+        const pDate = document.getElementById('tPlannedDate')?.value || '';
+        if (pDate && selVal === 'nonplanned' && !cleanId) return 'planned';
+        return selVal;
+      })(),
+      learningProgress: Number(document.getElementById('tLearningProgress')?.value || 0),
+      recurrence: document.getElementById('tRecurrence')?.value || 'none'
+    };
+
+    const rows = Array.isArray(window.tempTaskSubtaskRows)
+      ? window.tempTaskSubtaskRows
+      : (typeof tempTaskSubtaskRows !== 'undefined' && Array.isArray(tempTaskSubtaskRows) ? tempTaskSubtaskRows : []);
+
+    const builtSubtasks = rows
+      .filter(r => r && String(r.title || '').trim())
+      .map(r => {
+        const cleanTitle = String(r.title || '').trim();
+        const cleanDesc = String(r.description || '').trim();
+        const cleanAssignee = String(r.assignee || '').trim();
+        const cleanStatus = r.status || 'To do';
+        const orig = (r.id && existingTask)
+          ? (existingTask.subtasks || []).find(s => s.id === r.id)
+          : null;
+        if (cleanAssignee) ensureAssigneeRecord(cleanAssignee);
+        if (orig) {
+          return {
+            ...orig,
+            title: cleanTitle,
+            description: cleanDesc,
+            assignee: cleanAssignee,
+            status: cleanStatus
+          };
+        }
         return {
-          ...orig,
+          id: uid('sub'),
           title: cleanTitle,
           description: cleanDesc,
           assignee: cleanAssignee,
-          status: cleanStatus
+          status: cleanStatus,
+          dueDate: '',
+          category: payload.category || 'Administrative',
+          plannedDate: '',
+          plannedStartTime: '',
+          estimatedHours: 0,
+          externalRef: '',
+          blockedByTaskId: '',
+          learningProgress: 0
         };
-      }
-      return {
-        id: uid('sub'),
-        title: cleanTitle,
-        description: cleanDesc,
-        assignee: cleanAssignee,
-        status: cleanStatus,
-        dueDate: '',
-        category: payload.category || 'Administrative',
-        plannedDate: '',
-        plannedStartTime: '',
-        estimatedHours: 0,
-        externalRef: '',
-        blockedByTaskId: '',
-        learningProgress: 0
-      };
-    });
+      });
 
-  let savedTaskRef = t || null;
-  if (taskId) {
-    const wasDone = t.status === 'Done';
-    Object.assign(t, payload, { subtasks: builtSubtasks });
-    if (!wasDone && t.status === 'Done') {
-      spawnNextRecurringTask(t);
-      maybeAutoNotifySlack(t, null, 'completed');
+    if (!Array.isArray(state.tasks)) state.tasks = [];
+
+    if (existingTask) {
+      const wasDone = existingTask.status === 'Done';
+      Object.assign(existingTask, payload, { subtasks: builtSubtasks });
+      if (!wasDone && existingTask.status === 'Done') {
+        if (typeof spawnNextRecurringTask === 'function') spawnNextRecurringTask(existingTask);
+        if (typeof maybeAutoNotifySlack === 'function') maybeAutoNotifySlack(existingTask, null, 'completed');
+      }
+      showToast('Task updated');
+    } else {
+      const created = { id: uid('task'), subtasks: builtSubtasks, ...payload };
+      state.tasks.unshift(created);
+      if (typeof maybeAutoNotifySlack === 'function') maybeAutoNotifySlack(created, null, 'created');
+      showToast('Task created');
     }
-    showToast('Task updated');
-  } else {
-    const created = { id: uid('task'), subtasks: builtSubtasks, ...payload };
-    savedTaskRef = created;
-    state.tasks.unshift(created);
-    maybeAutoNotifySlack(created, null, 'created');
-    showToast('Task created');
+
+    if (payload.assignee) ensureAssigneeRecord(payload.assignee);
+    tempTaskSubtaskRows = [];
+    window.tempTaskSubtaskRows = [];
+    saveState();
+    closeModal();
+    render();
+  } catch (err) {
+    console.error('Failed to save task:', err);
+    alert('Could not save task due to an error: ' + (err && err.message ? err.message : String(err)));
   }
-  if (payload.assignee) ensureAssigneeRecord(payload.assignee);
-  // Keep explicit drag order set in the task popup
-  saveState();
-  closeModal();
-  render();
 }
 
 function deleteTask(taskId) {
@@ -8586,7 +8637,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.15';
+const CADENCE_VERSION = 'v1.18';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
