@@ -1535,14 +1535,11 @@
     font-size: 0.82rem;
   }
 
-  /* Compact Horizontal Assignee Ribbon (replaces tall grid) */
+  /* Embedded Team Swimlanes inside More Filters drawer */
   .assignee-ribbon-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    padding: 7px 10px;
-    margin-bottom: 12px;
-    box-shadow: var(--shadow);
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
   }
   .assignee-ribbon-header {
     display: flex;
@@ -1966,7 +1963,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.24</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.25</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2003,7 +2000,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.24 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.25 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3475,6 +3472,8 @@ function countActiveExtraFilters() {
   if (f.priority) cnt++;
   if (f.category) cnt++;
   if (f.planned) cnt++;
+  const namedAssignees = (Array.isArray(f.assignees) ? f.assignees : []).filter(x => x !== '__me__' && x !== '__delegated__');
+  if (namedAssignees.length > 0) cnt++;
   return cnt;
 }
 
@@ -3659,7 +3658,6 @@ function buildAssigneePillHtml({ labelText, icon, leftOrg, stats, isSelected, on
 }
 
 function renderAssigneeProgressStrip() {
-  if (!state.ui.showAssigneeStrip) return '';
   syncAssigneesFromTasks();
   const today = todayStr();
   const selectedList = getSelectedAssignees();
@@ -3768,7 +3766,6 @@ function renderAssigneeProgressStrip() {
         </span>
         <div style="display:flex;gap:8px;align-items:center;">
           ${(selectedList.length > 0 || teamFilter) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.taskFilters.assignees=[];state.ui.taskFilters.team='';render()">Clear selection</button>` : ''}
-          <button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.showAssigneeStrip=false;render()" title="Hide team swimlanes to maximize task list space">Hide</button>
         </div>
       </div>
       <div class="team-swimlanes">${lanesHtml}</div>
@@ -3919,7 +3916,6 @@ function renderTasks(el) {
         </div>
 
         <div class="tasks-cmd-right">
-          ${!state.ui.showAssigneeStrip ? `<button type="button" class="btn btn-sm" onclick="state.ui.showAssigneeStrip=true;render()" title="Show team member workload bar">👥 Team Bar</button>` : ''}
           <button type="button" class="btn btn-sm ${state.ui.showMoreFilters || extraFilterCount ? 'btn-primary' : ''}" onclick="state.ui.showMoreFilters=!state.ui.showMoreFilters;render()" title="Filter by team, stage, status, priority, category, or planning type">
             🎛️ More Filters${extraFilterCount ? ` (${extraFilterCount})` : ''}
           </button>
@@ -3990,12 +3986,11 @@ function renderTasks(el) {
             </select>
           </div>
         </div>
+        ${renderAssigneeProgressStrip()}
       </div>
     ` : ''}
 
     ${renderActiveFilterPills()}
-
-    ${renderAssigneeProgressStrip()}
 
     <div id="taskResultsContainer">${renderTaskViewContent(tasks)}</div>
   `;
@@ -9577,7 +9572,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.24';
+const CADENCE_VERSION = 'v1.25';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
