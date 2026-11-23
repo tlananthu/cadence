@@ -601,12 +601,20 @@
 
   .rte-toolbar {
     display: flex;
-    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
     padding: 6px 8px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
+  }
+  .rte-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 2px;
   }
   .rte-editor {
     min-height: 150px;
@@ -618,18 +626,49 @@
     font-size: 0.92rem;
     outline: none;
     overflow-y: auto;
+    overflow-x: auto;
   }
   .rte-editor.desc-editor {
     min-height: 190px;
   }
   .rte-editor ol { padding-left: 22px; margin: 6px 0; }
   .rte-rendered { display: inline; }
+  div.rte-rendered, .note-body { display: block; overflow-x: auto; }
   .rte-rendered ul, .rte-rendered ol { padding-left: 20px; margin: 4px 0; }
   .rte-rendered p { margin: 4px 0; }
   .rte-rendered h3 { margin: 6px 0 3px; font-size: 1rem; }
   .rte-editor:focus { border-color: var(--primary); }
   .rte-editor ul { padding-left: 22px; margin: 6px 0; }
   .rte-editor h3 { margin: 8px 0 4px; font-size: 1.05rem; }
+  .rte-editor table, .rte-rendered table, .note-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 0.84rem;
+    background: var(--surface);
+  }
+  .rte-editor th, .rte-editor td,
+  .rte-rendered th, .rte-rendered td,
+  .note-body th, .note-body td {
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    vertical-align: top;
+    text-align: left;
+    min-width: 48px;
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 0.84rem;
+    color: var(--text);
+  }
+  .rte-editor th, .rte-rendered th, .note-body th {
+    background: var(--surface-2);
+    font-weight: 700;
+  }
+  .rte-editor td.rte-cell-active, .rte-editor th.rte-cell-active {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+    background: var(--primary-soft);
+  }
 
   /* Tables */
   .table-wrap { overflow-x: auto; }
@@ -1702,7 +1741,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.18</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.19</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -1739,7 +1778,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.18 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.19 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2136,17 +2175,26 @@ function esc(str) {
 function sanitizeNoteHtml(html) {
   const div = document.createElement('div');
   div.innerHTML = html || '';
-  const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'H3', 'H2', 'UL', 'OL', 'LI', 'P', 'BR', 'DIV', 'SPAN']);
+  const allowed = new Set([
+    'B', 'STRONG', 'I', 'EM', 'U', 'H3', 'H2', 'UL', 'OL', 'LI', 'P', 'BR', 'DIV', 'SPAN',
+    'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD'
+  ]);
+  const dropCompletely = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'COLGROUP', 'COL', 'HEAD']);
   function walk(node) {
     for (let i = node.childNodes.length - 1; i >= 0; i--) {
       const child = node.childNodes[i];
       if (child.nodeType === 1) {
-        if (!allowed.has(child.tagName)) {
+        if (dropCompletely.has(child.tagName)) {
+          node.removeChild(child);
+        } else if (!allowed.has(child.tagName)) {
           const text = document.createTextNode(child.textContent);
           node.replaceChild(text, child);
         } else {
-          // Strip all attributes
+          const keepColspan = (child.tagName === 'TD' || child.tagName === 'TH') ? parseInt(child.getAttribute('colspan'), 10) : NaN;
+          const keepRowspan = (child.tagName === 'TD' || child.tagName === 'TH') ? parseInt(child.getAttribute('rowspan'), 10) : NaN;
           while (child.attributes.length > 0) child.removeAttribute(child.attributes[0].name);
+          if (keepColspan > 1 && keepColspan <= 50) child.setAttribute('colspan', String(keepColspan));
+          if (keepRowspan > 1 && keepRowspan <= 200) child.setAttribute('rowspan', String(keepRowspan));
           walk(child);
         }
       }
@@ -4156,15 +4204,9 @@ function openTaskModal(taskId = null, opts = {}) {
 
       <div class="form-group">
         <label>Description</label>
-        <div class="rte-toolbar">
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','bold')" title="Bold"><b>B</b> Bold</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','italic')" title="Italic"><i>I</i> Italic</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','underline')" title="Underline"><u>U</u> Underline</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','heading')" title="Heading">H Heading</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','list')" title="Bullet list">• List</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('tDesc','olist')" title="Numbered list">1. List</button>
-        </div>
+        ${renderRteToolbar('tDesc')}
         <div class="rte-editor desc-editor" id="tDesc" contenteditable="true" data-placeholder="Extra context or acceptance criteria...">${sanitizeNoteHtml(t?.description || '')}</div>
+        <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
       </div>
 
       <div class="modal-subtask-grid-wrap">
@@ -4294,6 +4336,7 @@ function openTaskModal(taskId = null, opts = {}) {
   populateStageDropdown(defaultProjId, t?.stageId || '');
   renderTaskModalSubtaskGrid();
   updateTaskCategoryHint();
+  initRichEditorTableSupport('tDesc');
 }
 
 function populateStageDropdown(projectId, selectedStageId = '') {
@@ -4530,15 +4573,9 @@ function openSubtaskModal(taskId, subId = null) {
 
       <div class="form-group">
         <label>Description (optional)</label>
-        <div class="rte-toolbar">
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('stDesc','bold')" title="Bold"><b>B</b> Bold</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('stDesc','italic')" title="Italic"><i>I</i> Italic</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('stDesc','underline')" title="Underline"><u>U</u> Underline</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('stDesc','heading')" title="Heading">H Heading</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('stDesc','list')" title="Bullet list">• List</button>
-          <button type="button" class="btn btn-xs" onclick="formatRichEditor('stDesc','olist')" title="Numbered list">1. List</button>
-        </div>
+        ${renderRteToolbar('stDesc')}
         <div class="rte-editor desc-editor" id="stDesc" contenteditable="true" data-placeholder="Details or notes for this subtask...">${sanitizeNoteHtml(s?.description || '')}</div>
+        <div class="field-hint">Supports tables: paste directly from Excel/Google Sheets or use the table buttons above.</div>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px;">
@@ -4621,6 +4658,7 @@ function openSubtaskModal(taskId, subId = null) {
     </form>
   `);
   updateSubtaskCategoryHint();
+  initRichEditorTableSupport('stDesc');
 }
 
 function saveSubtaskForm(e, taskId, subId) {
@@ -5226,20 +5264,40 @@ function openNoteModal(noteId = null) {
       </div>
       <div class="form-group">
         <label>Note Content</label>
-        <div class="rte-toolbar">
-          <button type="button" class="btn btn-xs" onclick="formatNote('bold')" title="Make selected text bold"><b>B</b> Bold</button>
-          <button type="button" class="btn btn-xs" onclick="formatNote('heading')" title="Turn current line into a heading">H Heading</button>
-          <button type="button" class="btn btn-xs" onclick="formatNote('list')" title="Insert a bullet list">• Bullet List</button>
-        </div>
+        ${renderRteToolbar('nBody')}
         <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
-        <div class="field-hint">Highlight text and click Bold, Heading, or Bullet List to format.</div>
+        <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn" onclick="closeModal()">Cancel</button>
         <button type="submit" class="btn btn-primary">Save Note</button>
       </div>
     </form>
-  `);
+  `, { wideContent: true });
+  initRichEditorTableSupport('nBody');
+}
+
+const rteLastCellByEditor = {};
+
+function renderRteToolbar(editorId) {
+  return `
+    <div class="rte-toolbar">
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','bold')" title="Bold"><b>B</b></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','italic')" title="Italic"><i>I</i></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','underline')" title="Underline"><u>U</u></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','heading')" title="Heading"><b>H</b></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','list')" title="Bullet list">• List</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','olist')" title="Numbered list">1. List</button>
+      <span class="rte-sep"></span>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteInsertTable('${editorId}')" title="Insert a 3×3 table">⊞ Table</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','addRow')" title="Add a row below the current cell">+Row</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','addCol')" title="Add a column to the right of the current cell">+Col</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','delRow')" title="Delete current row">−Row</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','delCol')" title="Delete current column">−Col</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','toggleHeader')" title="Toggle current row between Header (th) and Normal (td)">Hdr</button>
+      <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','delTable')" title="Delete the active table">🗑️ Table</button>
+    </div>
+  `;
 }
 
 function formatRichEditor(editorId, type) {
@@ -5252,6 +5310,433 @@ function formatRichEditor(editorId, type) {
   if (type === 'list') document.execCommand('insertUnorderedList', false, null);
   if (type === 'olist') document.execCommand('insertOrderedList', false, null);
   if (type === 'heading') document.execCommand('formatBlock', false, 'h3');
+}
+
+function setRteActiveCell(editor, cell) {
+  if (!editor) return;
+  editor.querySelectorAll('.rte-cell-active').forEach(el => el.classList.remove('rte-cell-active'));
+  if (cell && editor.contains(cell)) {
+    cell.classList.add('rte-cell-active');
+    rteLastCellByEditor[editor.id] = cell;
+  } else {
+    delete rteLastCellByEditor[editor.id];
+  }
+}
+
+function getRteActiveCell(editor) {
+  if (!editor) return null;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    let node = sel.anchorNode;
+    if (node && node.nodeType === 3) node = node.parentElement;
+    if (node && editor.contains(node)) {
+      const cell = node.closest('td, th');
+      if (cell && editor.contains(cell)) {
+        setRteActiveCell(editor, cell);
+        return cell;
+      }
+    }
+  }
+  const cached = rteLastCellByEditor[editor.id];
+  if (cached && editor.contains(cached)) return cached;
+  return null;
+}
+
+function focusRteCell(editor, cell) {
+  if (!editor || !cell) return;
+  editor.focus();
+  const range = document.createRange();
+  range.selectNodeContents(cell);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  setRteActiveCell(editor, cell);
+}
+
+function buildHtmlTableFromMatrix(matrix, firstRowHeader = true) {
+  const table = document.createElement('table');
+  const maxCols = Math.max(1, ...matrix.map(r => r.length));
+  const thead = document.createElement('thead');
+  const tbody = document.createElement('tbody');
+
+  matrix.forEach((rowArr, rIdx) => {
+    const tr = document.createElement('tr');
+    const isHdr = firstRowHeader && rIdx === 0 && matrix.length > 1;
+    for (let c = 0; c < maxCols; c++) {
+      const cell = document.createElement(isHdr ? 'th' : 'td');
+      const val = rowArr[c] !== undefined ? String(rowArr[c]) : '';
+      if (val.trim()) {
+        cell.textContent = val;
+      } else {
+        cell.innerHTML = '<br>';
+      }
+      tr.appendChild(cell);
+    }
+    if (isHdr) thead.appendChild(tr);
+    else tbody.appendChild(tr);
+  });
+
+  if (thead.children.length > 0) table.appendChild(thead);
+  if (tbody.children.length > 0) table.appendChild(tbody);
+  return table;
+}
+
+function insertNodeAtRteCursor(editor, node) {
+  editor.focus();
+  const sel = window.getSelection();
+  let inserted = false;
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    if (editor.contains(range.commonAncestorContainer)) {
+      range.deleteContents();
+      range.insertNode(node);
+      inserted = true;
+    }
+  }
+  if (!inserted) {
+    editor.appendChild(node);
+  }
+  // Ensure there is always a paragraph after a table so the user can type below it
+  if (node.tagName === 'TABLE' && (!node.nextSibling || (node.nextSibling.nodeType === 3 && !node.nextSibling.textContent.trim()))) {
+    const p = document.createElement('p');
+    p.innerHTML = '<br>';
+    node.parentNode.insertBefore(p, node.nextSibling);
+  }
+}
+
+function rteInsertTable(editorId, rows = 3, cols = 3) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return;
+  const matrix = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      row.push(r === 0 ? `Header ${c + 1}` : '');
+    }
+    matrix.push(row);
+  }
+  const table = buildHtmlTableFromMatrix(matrix, true);
+  // If cursor is currently inside an existing table, insert after that table instead of nesting
+  const activeCell = getRteActiveCell(editor);
+  if (activeCell) {
+    const outerTable = activeCell.closest('table');
+    if (outerTable && outerTable.parentNode) {
+      outerTable.parentNode.insertBefore(table, outerTable.nextSibling);
+      const p = document.createElement('p');
+      p.innerHTML = '<br>';
+      outerTable.parentNode.insertBefore(p, table.nextSibling);
+    }
+  } else {
+    insertNodeAtRteCursor(editor, table);
+  }
+  const firstCell = table.querySelector('th, td');
+  if (firstCell) focusRteCell(editor, firstCell);
+}
+
+function rteTableAction(editorId, action) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return;
+  const cell = getRteActiveCell(editor);
+  if (!cell) {
+    showToast('Click inside a table cell first');
+    return;
+  }
+  const tr = cell.closest('tr');
+  const table = cell.closest('table');
+  if (!tr || !table) return;
+
+  const allRows = Array.from(table.querySelectorAll('tr'));
+  const rowIndex = allRows.indexOf(tr);
+  const colIndex = Array.from(tr.children).indexOf(cell);
+
+  if (action === 'addRow') {
+    const colCount = Math.max(1, tr.children.length);
+    const newTr = document.createElement('tr');
+    for (let i = 0; i < colCount; i++) {
+      const td = document.createElement('td');
+      td.innerHTML = '<br>';
+      newTr.appendChild(td);
+    }
+    // If adding below a thead row, insert at top of tbody
+    if (tr.parentElement && tr.parentElement.tagName === 'THEAD') {
+      let tbody = table.querySelector('tbody');
+      if (!tbody) {
+        tbody = document.createElement('tbody');
+        table.appendChild(tbody);
+      }
+      tbody.insertBefore(newTr, tbody.firstChild);
+    } else {
+      tr.parentNode.insertBefore(newTr, tr.nextSibling);
+    }
+    focusRteCell(editor, newTr.children[Math.min(colIndex, newTr.children.length - 1)]);
+  } else if (action === 'addCol') {
+    allRows.forEach(r => {
+      const refCell = r.children[colIndex] || null;
+      const isHdrRow = (r.parentElement && r.parentElement.tagName === 'THEAD') || (refCell && refCell.tagName === 'TH');
+      const newCell = document.createElement(isHdrRow ? 'th' : 'td');
+      newCell.innerHTML = isHdrRow ? 'Header' : '<br>';
+      if (refCell) r.insertBefore(newCell, refCell.nextSibling);
+      else r.appendChild(newCell);
+    });
+    const nextCell = tr.children[colIndex + 1];
+    if (nextCell) focusRteCell(editor, nextCell);
+  } else if (action === 'delRow') {
+    if (allRows.length <= 1) {
+      table.remove();
+      setRteActiveCell(editor, null);
+      return;
+    }
+    const nextRow = allRows[rowIndex + 1] || allRows[rowIndex - 1];
+    tr.remove();
+    if (nextRow && nextRow.children.length > 0) {
+      focusRteCell(editor, nextRow.children[Math.min(colIndex, nextRow.children.length - 1)]);
+    }
+  } else if (action === 'delCol') {
+    const maxCols = Math.max(...allRows.map(r => r.children.length));
+    if (maxCols <= 1) {
+      table.remove();
+      setRteActiveCell(editor, null);
+      return;
+    }
+    allRows.forEach(r => {
+      if (r.children[colIndex]) r.children[colIndex].remove();
+    });
+    const fallback = tr.children[Math.min(colIndex, tr.children.length - 1)];
+    if (fallback) focusRteCell(editor, fallback);
+  } else if (action === 'toggleHeader') {
+    const isCurrentlyHeader = Array.from(tr.children).every(c => c.tagName === 'TH');
+    const targetTag = isCurrentlyHeader ? 'td' : 'th';
+    Array.from(tr.children).forEach(c => {
+      const replacement = document.createElement(targetTag);
+      replacement.innerHTML = c.innerHTML;
+      if (c.hasAttribute('colspan')) replacement.setAttribute('colspan', c.getAttribute('colspan'));
+      if (c.hasAttribute('rowspan')) replacement.setAttribute('rowspan', c.getAttribute('rowspan'));
+      tr.replaceChild(replacement, c);
+    });
+    focusRteCell(editor, tr.children[Math.min(colIndex, tr.children.length - 1)]);
+  } else if (action === 'delTable') {
+    table.remove();
+    setRteActiveCell(editor, null);
+  }
+}
+
+function parsePlainTabularText(text) {
+  if (!text) return null;
+  const trimmed = text.replace(/
+/g, '
+').replace(/
+/g, '
+').trim();
+  if (!trimmed) return null;
+  const lines = trimmed.split('
+');
+
+  // 1. Check for Tab-Separated Values (Excel / Google Sheets / SQL / TSV)
+  const hasTabs = lines.some(l => l.includes('	'));
+  if (hasTabs) {
+    const rows = [];
+    let currentRow = [];
+    let currentCell = '';
+    let inQuotes = false;
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (ch === '"') {
+        if (inQuotes && trimmed[i + 1] === '"') {
+          currentCell += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === '	' && !inQuotes) {
+        currentRow.push(currentCell);
+        currentCell = '';
+      } else if (ch === '
+' && !inQuotes) {
+        currentRow.push(currentCell);
+        rows.push(currentRow);
+        currentRow = [];
+        currentCell = '';
+      } else {
+        currentCell += ch;
+      }
+    }
+    currentRow.push(currentCell);
+    rows.push(currentRow);
+    const maxCols = Math.max(...rows.map(r => r.length));
+    if (maxCols >= 2) return rows;
+  }
+
+  // 2. Check for Markdown pipe tables (| Col A | Col B | 
+ | --- | --- |)
+  if (lines.length >= 2 && lines[0].includes('|') && /^\s*\|?[\s:-]+\|[\s|:-]*$/.test(lines[1])) {
+    const splitPipe = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+    const header = splitPipe(lines[0]);
+    if (header.length >= 2) {
+      const rows = [header];
+      for (let i = 2; i < lines.length; i++) {
+        if (!lines[i].trim() || !lines[i].includes('|')) break;
+        rows.push(splitPipe(lines[i]));
+      }
+      return rows;
+    }
+  }
+  return null;
+}
+
+function extractMatrixFromHtmlTable(tableEl) {
+  const rows = [];
+  Array.from(tableEl.querySelectorAll('tr')).forEach(tr => {
+    const cells = Array.from(tr.children).filter(c => c.tagName === 'TD' || c.tagName === 'TH');
+    if (cells.length > 0) {
+      rows.push(cells.map(c => c.textContent.trim()));
+    }
+  });
+  return rows;
+}
+
+function pasteMatrixIntoExistingTable(editor, startCell, matrix) {
+  const table = startCell.closest('table');
+  const startTr = startCell.closest('tr');
+  if (!table || !startTr || !matrix || matrix.length === 0) return;
+
+  let allRows = Array.from(table.querySelectorAll('tr'));
+  const startRowIdx = allRows.indexOf(startTr);
+  const startColIdx = Array.from(startTr.children).indexOf(startCell);
+  const pasteCols = Math.max(...matrix.map(r => r.length));
+  const neededCols = startColIdx + pasteCols;
+
+  // Ensure enough rows exist
+  let tbody = table.querySelector('tbody');
+  if (!tbody) {
+    tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+  }
+  const currentColCount = Math.max(neededCols, ...allRows.map(r => r.children.length));
+  while (allRows.length < startRowIdx + matrix.length) {
+    const newTr = document.createElement('tr');
+    for (let c = 0; c < currentColCount; c++) {
+      const td = document.createElement('td');
+      td.innerHTML = '<br>';
+      newTr.appendChild(td);
+    }
+    tbody.appendChild(newTr);
+    allRows.push(newTr);
+  }
+
+  // Ensure every row has enough columns
+  allRows.forEach(r => {
+    const isHdr = r.parentElement && r.parentElement.tagName === 'THEAD';
+    while (r.children.length < currentColCount) {
+      const cell = document.createElement(isHdr ? 'th' : 'td');
+      cell.innerHTML = '<br>';
+      r.appendChild(cell);
+    }
+  });
+
+  // Fill matrix values
+  let lastTouchedCell = startCell;
+  matrix.forEach((rowData, rOffset) => {
+    const targetTr = allRows[startRowIdx + rOffset];
+    rowData.forEach((val, cOffset) => {
+      const targetCell = targetTr.children[startColIdx + cOffset];
+      if (targetCell) {
+        targetCell.textContent = val;
+        lastTouchedCell = targetCell;
+      }
+    });
+  });
+
+  focusRteCell(editor, lastTouchedCell);
+}
+
+function initRichEditorTableSupport(editorId) {
+  const editor = document.getElementById(editorId);
+  if (!editor || editor.dataset.rteTableInit === '1') return;
+  editor.dataset.rteTableInit = '1';
+
+  const trackActiveCell = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    let node = sel.anchorNode;
+    if (node && node.nodeType === 3) node = node.parentElement;
+    if (node && editor.contains(node)) {
+      const cell = node.closest('td, th');
+      setRteActiveCell(editor, cell && editor.contains(cell) ? cell : null);
+    }
+  };
+
+  editor.addEventListener('mouseup', trackActiveCell);
+  editor.addEventListener('keyup', trackActiveCell);
+  editor.addEventListener('click', trackActiveCell);
+
+  // Tab / Shift+Tab navigation inside table cells
+  editor.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const cell = getRteActiveCell(editor);
+    if (!cell) return;
+    const table = cell.closest('table');
+    if (!table) return;
+    e.preventDefault();
+    const cells = Array.from(table.querySelectorAll('th, td'));
+    const idx = cells.indexOf(cell);
+    if (e.shiftKey) {
+      if (idx > 0) focusRteCell(editor, cells[idx - 1]);
+    } else {
+      if (idx + 1 < cells.length) {
+        focusRteCell(editor, cells[idx + 1]);
+      } else {
+        // Tab on last cell automatically adds a new row
+        rteTableAction(editorId, 'addRow');
+      }
+    }
+  });
+
+  // Smart paste for HTML tables (Excel, Sheets, web) and plain-text TSV / Markdown tables
+  editor.addEventListener('paste', (e) => {
+    const cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    const htmlData = cd.getData('text/html') || '';
+    const plainData = cd.getData('text/plain') || '';
+    const activeCell = getRteActiveCell(editor);
+
+    // 1. HTML table on clipboard
+    if (/<table[\s>]/i.test(htmlData)) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = sanitizeNoteHtml(htmlData);
+      const pastedTable = tmp.querySelector('table');
+      if (pastedTable) {
+        e.preventDefault();
+        if (activeCell) {
+          const matrix = extractMatrixFromHtmlTable(pastedTable);
+          pasteMatrixIntoExistingTable(editor, activeCell, matrix);
+          showToast('Pasted tabular data into table');
+        } else {
+          insertNodeAtRteCursor(editor, pastedTable);
+          const firstCell = pastedTable.querySelector('th, td');
+          if (firstCell) focusRteCell(editor, firstCell);
+          showToast('Table pasted');
+        }
+        return;
+      }
+    }
+
+    // 2. Plain-text TSV or Markdown pipe table
+    const matrix = parsePlainTabularText(plainData);
+    if (matrix && matrix.length > 0) {
+      e.preventDefault();
+      if (activeCell) {
+        pasteMatrixIntoExistingTable(editor, activeCell, matrix);
+        showToast('Pasted tabular data into table');
+      } else {
+        const table = buildHtmlTableFromMatrix(matrix, true);
+        insertNodeAtRteCursor(editor, table);
+        const firstCell = table.querySelector('th, td');
+        if (firstCell) focusRteCell(editor, firstCell);
+        showToast('Tabular data pasted as table');
+      }
+    }
+  });
 }
 
 function formatNote(type) {
@@ -8637,7 +9122,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.18';
+const CADENCE_VERSION = 'v1.19';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
