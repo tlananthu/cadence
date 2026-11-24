@@ -1202,6 +1202,9 @@
     display: grid;
     grid-template-columns: 64px 1fr;
     position: relative;
+    max-height: calc(100vh - 280px);
+    min-height: 360px;
+    overflow-y: auto;
   }
   .cal-day-hours-col {
     display: flex;
@@ -1235,23 +1238,68 @@
   .cal-day-bg-slot.is-subhour {
     border-bottom: 1px dashed var(--border);
   }
-  .cal-zoom-bar {
-    display: inline-flex;
+  .cal-zoom-float {
+    position: fixed;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 70;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 2px 5px;
+    gap: 8px;
   }
-  .cal-zoom-bar select {
-    width: auto;
-    padding: 2px 6px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    border: none;
-    background: transparent;
+  .cal-zoom-fab {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-lg);
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    font-size: 0.9rem;
+    line-height: 1;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  }
+  .cal-zoom-fab:hover, .cal-zoom-fab.active {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .cal-zoom-fab-lbl {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .cal-zoom-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 6px;
+    box-shadow: var(--shadow-lg);
+  }
+  .cal-zoom-panel select {
+    width: auto;
+    padding: 3px 6px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    cursor: pointer;
+    text-align: center;
+  }
+  @media print {
+    .cal-zoom-float { display: none !important; }
   }
   .cal-day-bg-slot.drag-over {
     background: var(--primary-soft);
@@ -2090,7 +2138,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.34</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.35</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2127,7 +2175,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.34 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.35 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2233,6 +2281,7 @@ let state = {
     calendarMode: 'day', // month | week | day
     calendarDate: '',
     calendarDayZoomMins: 60, // 15 | 30 | 60 | 120
+    calendarZoomOpen: false,
     calendarDragTarget: 'planned', // planned | due
     taskViewMode: 'list', // list | todo | kanban
     selectedTodoTaskId: '',
@@ -7328,7 +7377,6 @@ function renderCalendar(el) {
           <button class="tab-btn ${mode === 'week' ? 'active' : ''}" onclick="state.ui.calendarMode='week';render()">Week</button>
           <button class="tab-btn ${mode === 'day' ? 'active' : ''}" onclick="state.ui.calendarMode='day';render()">Day</button>
         </div>
-        ${mode === 'day' ? renderCalendarDayZoomControl() : ''}
         <button class="btn btn-sm btn-primary" id="syncCalUrlBtn" onclick="importCalendarFromUrl()" title="Fetch & import events directly from your configured Google Calendar / Outlook public .ics URL">🔄 Sync URL</button>
         <button class="btn btn-sm" onclick="exportCalendarICS()" title="Download an .ics file to import into Google Calendar or Outlook">⬇️ Export .ics</button>
         <button class="btn btn-sm" onclick="document.getElementById('icsImportInput').click()" title="Import events from a local .ics file">⬆️ Import .ics</button>
@@ -7370,6 +7418,7 @@ function renderCalendar(el) {
         ${mode === 'month' ? renderCalendarMonth(cur) : (mode === 'week' ? renderCalendarWeek(cur) : renderCalendarDay(cur))}
       </div>
     </div>
+    ${mode === 'day' ? renderCalendarDayZoomControl() : ''}
   `;
   if (mode === 'day') {
     scrollCalendarToNowLine();
@@ -7717,17 +7766,31 @@ function stepCalendarDayZoom(dir) {
   }
 }
 
+function toggleCalendarZoomPanel(e) {
+  if (e) e.stopPropagation();
+  state.ui.calendarZoomOpen = !state.ui.calendarZoomOpen;
+  render();
+}
+
 function renderCalendarDayZoomControl() {
   const z = getCalendarDayZoomMins();
   const idx = CAL_DAY_ZOOM_STEPS.indexOf(z);
+  const isOpen = Boolean(state.ui.calendarZoomOpen);
   return `
-    <div class="cal-zoom-bar" title="Timeline grid interval (15m to 2h)">
-      <span style="font-size:0.74rem;color:var(--text-muted);padding-left:2px;">🔍</span>
-      <button type="button" class="btn btn-xs btn-ghost" onclick="stepCalendarDayZoom(1)" ${idx >= CAL_DAY_ZOOM_STEPS.length - 1 ? 'disabled' : ''} title="Zoom out (larger grid up to 2h)">−</button>
-      <select onchange="setCalendarDayZoom(this.value)" aria-label="Timeline grid interval">
-        ${CAL_DAY_ZOOM_STEPS.map(m => `<option value="${m}" ${m === z ? 'selected' : ''}>${CAL_DAY_ZOOM_CONFIG[m].label} grid</option>`).join('')}
-      </select>
-      <button type="button" class="btn btn-xs btn-ghost" onclick="stepCalendarDayZoom(-1)" ${idx <= 0 ? 'disabled' : ''} title="Zoom in (finer grid down to 15m)">+</button>
+    <div class="cal-zoom-float no-print" onclick="event.stopPropagation()">
+      ${isOpen ? `
+        <div class="cal-zoom-panel" title="Timeline grid interval (15m to 2h)">
+          <button type="button" class="btn btn-xs" style="width:100%;" onclick="stepCalendarDayZoom(-1)" ${idx <= 0 ? 'disabled' : ''} title="Zoom in (finer grid down to 15m)">+</button>
+          <select onchange="setCalendarDayZoom(this.value)" aria-label="Timeline grid interval">
+            ${CAL_DAY_ZOOM_STEPS.map(m => `<option value="${m}" ${m === z ? 'selected' : ''}>${CAL_DAY_ZOOM_CONFIG[m].label}</option>`).join('')}
+          </select>
+          <button type="button" class="btn btn-xs" style="width:100%;" onclick="stepCalendarDayZoom(1)" ${idx >= CAL_DAY_ZOOM_STEPS.length - 1 ? 'disabled' : ''} title="Zoom out (larger grid up to 2h)">−</button>
+        </div>
+      ` : ''}
+      <button type="button" class="cal-zoom-fab ${isOpen ? 'active' : ''}" onclick="toggleCalendarZoomPanel(event)" title="Timeline Zoom (${CAL_DAY_ZOOM_CONFIG[z].label} grid)">
+        <span>🔍</span>
+        <span class="cal-zoom-fab-lbl">${CAL_DAY_ZOOM_CONFIG[z].label}</span>
+      </button>
     </div>
   `;
 }
@@ -7819,7 +7882,7 @@ function renderCalendarDay(cur) {
   html += `</div>`;
 
   // Proportional 24-hour timeline
-  html += `<div class="cal-day-timeline">`;
+  html += `<div class="cal-day-timeline" id="calDayTimeline">`;
   html += `<div class="cal-day-hours-col">`;
   slots.forEach(m => {
     const timeStr = formatMinsToTime(m);
@@ -7902,9 +7965,15 @@ function renderCalendarDay(cur) {
 
 function scrollCalendarToNowLine() {
   const line = document.getElementById('calNowLine');
+  const timeline = document.getElementById('calDayTimeline');
   if (!line) return;
   requestAnimationFrame(() => {
-    line.scrollIntoView({ behavior: 'auto', block: 'center' });
+    if (timeline) {
+      const topPx = parseFloat(line.style.top || '0');
+      timeline.scrollTop = Math.max(0, topPx - (timeline.clientHeight / 2));
+    } else {
+      line.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }
   });
 }
 
@@ -9195,10 +9264,16 @@ function openShortcutsModal() {
 }
 
 document.addEventListener('click', () => {
+  let changed = false;
   if (state.ui && state.ui.showViewsMenu) {
     state.ui.showViewsMenu = false;
-    render();
+    changed = true;
   }
+  if (state.ui && state.ui.calendarZoomOpen) {
+    state.ui.calendarZoomOpen = false;
+    changed = true;
+  }
+  if (changed) render();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -9360,7 +9435,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.34';
+const CADENCE_VERSION = 'v1.35';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
