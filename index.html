@@ -374,6 +374,7 @@
     border-radius: 10px;
     padding: 14px 16px;
     margin-bottom: 10px;
+    cursor: pointer;
     transition: border-color 0.15s;
   }
   .task-item:hover { border-color: var(--primary); }
@@ -459,7 +460,10 @@
     border: 1px solid var(--border);
     margin-bottom: 7px;
     font-size: 0.84rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
   }
+  .subtask-row:hover { border-color: var(--primary); }
   .subtask-left {
     display: flex;
     align-items: center;
@@ -2138,7 +2142,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.35</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.36</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2175,7 +2179,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.35 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.36 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3129,25 +3133,24 @@ function renderCompactTaskCard(t) {
   const actualH = (getActualSecondsForTask(t.id, true) / 3600).toFixed(1);
   const estH = Number(t.estimatedHours || 0).toFixed(1);
   return `
-    <div class="task-item" style="padding:11px 12px;">
+    <div class="task-item" style="padding:11px 12px;" onclick="openTaskModal('${t.id}')" title="Click to edit task">
       <div class="task-title-row">
-        <input type="checkbox" ${t.status === 'Done' ? 'checked' : ''} onchange="toggleTaskDone('${t.id}')" title="Mark task Done / To do" />
+        <input type="checkbox" ${t.status === 'Done' ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleTaskDone('${t.id}')" title="Mark task Done / To do" />
         <span class="task-title ${t.status === 'Done' ? 'done' : ''}" style="font-size:0.9rem;">${esc(t.title)}</span>
         ${blocker ? `<span class="badge b-warn" title="Blocked by unfinished task: ${esc(blocker.title)}">⚠️ Blocked</span>` : ''}
       </div>
       <div class="task-meta">
-        <button type="button" class="btn-int" onclick="openTasksFromToday({ projectId: '${esc(t.projectId || '')}', status: '__open__' })" title="Filter Tasks by project">📁 ${esc(proj ? proj.name : 'No project')} →</button>
+        <button type="button" class="btn-int" onclick="event.stopPropagation();openTasksFromToday({ projectId: '${esc(t.projectId || '')}', status: '__open__' })" title="Filter Tasks by project">📁 ${esc(proj ? proj.name : 'No project')} →</button>
         ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
         <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
         ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Repeats ${esc(t.recurrence)}">🔁 ${esc(t.recurrence)}</span>` : ''}
         <span title="Planned vs Actual hours">⏱ ${estH}h est / ${actualH}h act</span>
       </div>
-      <div style="display:flex;gap:6px;margin-top:8px;">
+      <div style="display:flex;gap:6px;margin-top:8px;" onclick="event.stopPropagation()">
         ${running
           ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
           : `<button class="btn btn-xs" onclick="startTimer('${t.id}')">▶ Timer</button>`}
         <button class="btn btn-xs" onclick="openTasksFromToday({ search: '${esc(t.title).replace(/'/g, "\'")}', status: '' })" title="View task on Tasks page">Tasks →</button>
-        <button class="btn btn-xs" onclick="openTaskModal('${t.id}')">Edit</button>
       </div>
     </div>
   `;
@@ -4204,16 +4207,16 @@ function renderTaskList(tasks) {
     const safeTTeam = esc(tTeam).replace(/'/g, "\\'");
 
     return `
-      <div class="task-item">
+      <div class="task-item" onclick="openTaskModal('${t.id}')" title="Click to edit task">
         <div>
           <div class="task-title-row">
-            <input type="checkbox" ${t.status === 'Done' ? 'checked' : ''} onchange="toggleTaskDone('${t.id}')" title="Toggle Done" />
+            <input type="checkbox" ${t.status === 'Done' ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleTaskDone('${t.id}')" title="Toggle Done" />
             <span class="task-title ${t.status === 'Done' ? 'done' : ''}">${esc(t.title)}</span>
             <span class="badge ${statusBadgeClass(t.status)}">${esc(t.status)}</span>
             <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
             <span class="badge ${plannedFlag ? 'b-progress' : 'b-todo'}" title="${plannedFlag ? 'Planned task' : 'Non-planned task'}">${plannedFlag ? '🗓️ Planned' : '📋 Non-planned'}</span>
             ${t.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(t.assignee)}">👤 ${esc(t.assignee)}</span>` : ''}
-            ${tTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeTTeam}')" title="Click to show tasks & subtasks for team ${esc(tTeam)}">🏷️ ${esc(tTeam)}</span>` : ''}
+            ${tTeam ? `<span class="badge b-cat clickable-team-badge" onclick="event.stopPropagation();filterByTeamName('${safeTTeam}')" title="Click to show tasks & subtasks for team ${esc(tTeam)}">🏷️ ${esc(tTeam)}</span>` : ''}
             <span class="badge ${billable ? 'b-billable' : 'b-nonbillable'}">${billable ? '💲 Billable' : 'Non-billable'}</span>
             ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Automatically creates next occurrence when marked Done">🔁 ${esc(t.recurrence)}</span>` : ''}
             ${blocker ? `<span class="badge b-warn" title="This task is blocked until '${esc(blocker.title)}' is marked Done">⚠️ Blocked by: ${esc(blocker.title)}</span>` : ''}
@@ -4225,28 +4228,27 @@ function renderTaskList(tasks) {
             ${t.plannedDate ? `<span>🗓 Planned: ${esc(t.plannedDate)}${t.plannedStartTime ? ` at ${esc(t.plannedStartTime)}` : ''}</span>` : ''}
             ${t.externalRef ? `<span>🔗 Ref: <strong>${esc(t.externalRef)}</strong></span>` : ''}
           </div>
-          ${renderIntegrationActions(t, null)}
+          <div onclick="event.stopPropagation()">${renderIntegrationActions(t, null)}</div>
 
           ${allSubs.length > 0 ? `
             <div class="progress-wrap">
               <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-              <span class="progress-text">${doneSubs} of ${allSubs.length} subtasks done (${pct}%)${hiddenDoneSubsCount > 0 ? ` • <a href="#" onclick="event.preventDefault();toggleHideCompleted()" style="color:var(--primary);text-decoration:none;">Show ${hiddenDoneSubsCount} completed</a>` : ''}</span>
+              <span class="progress-text">${doneSubs} of ${allSubs.length} subtasks done (${pct}%)${hiddenDoneSubsCount > 0 ? ` • <a href="#" onclick="event.preventDefault();event.stopPropagation();toggleHideCompleted()" style="color:var(--primary);text-decoration:none;">Show ${hiddenDoneSubsCount} completed</a>` : ''}</span>
             </div>
           ` : ''}
         </div>
 
-        <div class="task-actions-bar">
+        <div class="task-actions-bar" onclick="event.stopPropagation()">
           ${running
             ? `<button class="btn btn-sm btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
             : `<button class="btn btn-sm" onclick="startTimer('${t.id}')" title="Start tracking time on this task">▶ Start</button>`}
           <button class="btn btn-sm" onclick="openSubtaskModal('${t.id}')" title="Break this task into smaller subtasks">+ Subtask</button>
           <button class="btn btn-sm" onclick="duplicateTask('${t.id}')" title="Make a copy of this task and its subtasks">📋 Copy</button>
-          <button class="btn btn-sm" onclick="openTaskModal('${t.id}')">Edit</button>
           <button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteTask('${t.id}')">Delete</button>
         </div>
 
         ${subs.length > 0 ? `
-          <div class="subtasks-box">
+          <div class="subtasks-box" onclick="event.stopPropagation()">
             ${(hasAssigneeOrTeamFilter && matchingSubs.length > 0 && matchingSubs.length < allSubs.length) ? `<div style="font-size:0.75rem;color:var(--primary);font-weight:600;margin-bottom:6px;">Showing ${matchingSubs.length} matching subtask(s) of ${allSubs.length}</div>` : ''}
             ${subs.map(sub => {
               const subRunning = isTimerRunningFor(t.id, sub.id);
@@ -4254,26 +4256,25 @@ function renderTaskList(tasks) {
               const sTeam = sub.assignee ? ((getAssigneeMeta(sub.assignee)?.team || '').trim()) : getMyTeam();
               const safeSTeam = esc(sTeam).replace(/'/g, "\\'");
               return `
-                <div class="subtask-row ${isMatchedSub ? 'assignee-match' : ''}">
+                <div class="subtask-row ${isMatchedSub ? 'assignee-match' : ''}" onclick="openSubtaskModal('${t.id}','${sub.id}')" title="Click to edit subtask">
                   <div class="subtask-left">
-                    <input type="checkbox" ${sub.status === 'Done' ? 'checked' : ''} onchange="toggleSubtaskDone('${t.id}','${sub.id}')" />
+                    <input type="checkbox" ${sub.status === 'Done' ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtaskDone('${t.id}','${sub.id}')" />
                     <span class="${sub.status === 'Done' ? 'task-title done' : ''}" style="font-weight:600;font-size:0.84rem;">${esc(sub.title)}</span>
                     ${sub.description ? `<span class="rte-rendered" style="font-size:0.78rem;color:var(--text-muted);">${sanitizeNoteHtml(sub.description)}</span>` : ''}
                   </div>
                   <div class="subtask-footer">
-                    <div class="subtask-actions-left">
+                    <div class="subtask-actions-left" onclick="event.stopPropagation()">
                       ${renderIntegrationActions(t, sub, true)}
                       ${subRunning
                         ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
                         : `<button class="btn btn-xs" onclick="startTimer('${t.id}','${sub.id}')">▶ Start</button>`}
                       <button class="btn btn-xs" onclick="openMoveSubtaskModal('${t.id}','${sub.id}')" title="Move this subtask to its own project as a standalone task">📁 Move</button>
-                      <button class="btn btn-xs" onclick="openSubtaskModal('${t.id}','${sub.id}')">Edit</button>
                       <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteSubtask('${t.id}','${sub.id}')">✕</button>
                     </div>
                     <div class="subtask-tags-right">
                       <span class="badge ${statusBadgeClass(sub.status)}">${esc(sub.status)}</span>
                       ${sub.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(sub.assignee)}">👤 ${esc(sub.assignee)}</span>` : ''}
-                      ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
+                      ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="event.stopPropagation();filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
                       ${sub.dueDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Due ${esc(sub.dueDate)}</span>` : ''}
                       ${sub.plannedDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Planned ${esc(sub.plannedDate)} ${esc(sub.plannedStartTime || '')}</span>` : ''}
                       ${renderSubtaskDependencyBadge(sub)}
@@ -4419,7 +4420,7 @@ function renderTodoView(tasks) {
           <button type="button" class="ms-todo-check ${isDone ? 'checked' : ''}"
             onclick="toggleTaskDone('${t.id}')"
             title="${isDone ? 'Mark as To do' : 'Mark as Done'}">✓</button>
-          <div style="flex:1;min-width:0;">
+          <div style="flex:1;min-width:0;cursor:pointer;" onclick="openTaskModal('${t.id}')" title="Click to edit task">
             <div style="font-weight:700;font-size:1rem;line-height:1.3;${isDone ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(t.title)}</div>
             <div style="font-size:0.76rem;color:var(--text-muted);margin-top:3px;">
               📁 ${esc(proj ? proj.name : 'Unknown')}${stage ? ` › ${esc(stage.name)}` : ''}
@@ -4441,14 +4442,13 @@ function renderTodoView(tasks) {
 
         ${renderIntegrationActions(t, null)}
 
-        <div class="ms-todo-section" style="margin-top:10px;">
+        <div class="ms-todo-section" style="margin-top:10px;cursor:pointer;" onclick="openTaskModal('${t.id}')" title="Click to edit task">
           <div class="ms-todo-section-title">
             <span>📝 Description</span>
-            <button type="button" class="btn btn-xs btn-ghost" onclick="openTaskModal('${t.id}')">Edit</button>
           </div>
           ${t.description
             ? `<div class="rte-rendered" style="font-size:0.85rem;color:var(--text);">${sanitizeNoteHtml(t.description)}</div>`
-            : `<div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">No description yet. Click Edit to add details.</div>`}
+            : `<div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">No description yet. Click to add details.</div>`}
         </div>
 
         <div class="ms-todo-section">
@@ -4469,21 +4469,20 @@ function renderTodoView(tasks) {
                 const sDone = sub.status === 'Done';
                 const subRunning = isTimerRunningFor(t.id, sub.id);
                 return `
-                  <div class="ms-todo-step-row">
+                  <div class="ms-todo-step-row" style="cursor:pointer;" onclick="openSubtaskModal('${t.id}','${sub.id}')" title="Click to edit subtask">
                     <button type="button" class="ms-todo-check ${sDone ? 'checked' : ''}"
                       style="width:17px;height:17px;font-size:0.66rem;"
-                      onclick="toggleSubtaskDone('${t.id}','${sub.id}')"
+                      onclick="event.stopPropagation();toggleSubtaskDone('${t.id}','${sub.id}')"
                       title="${sDone ? 'Mark To do' : 'Mark Done'}">✓</button>
                     <div style="flex:1;min-width:0;">
                       <div style="font-weight:600;${sDone ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(sub.title)}</div>
                       ${sub.description ? `<div class="rte-rendered" style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">${sanitizeNoteHtml(sub.description)}</div>` : ''}
-                      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;font-size:0.72rem;color:var(--text-muted);align-items:center;">
+                      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;font-size:0.72rem;color:var(--text-muted);align-items:center;" onclick="event.stopPropagation()">
                         ${sub.assignee ? `<span class="badge b-assignee" style="font-size:0.68rem;">👤 ${esc(sub.assignee)}</span>` : ''}
                         ${sub.dueDate ? `<span>📅 ${esc(sub.dueDate)}</span>` : ''}
                         ${subRunning
                           ? `<button type="button" class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹</button>`
                           : `<button type="button" class="btn btn-xs btn-ghost" onclick="startTimer('${t.id}','${sub.id}')" title="Start timer">▶</button>`}
-                        <button type="button" class="btn btn-xs btn-ghost" onclick="openSubtaskModal('${t.id}','${sub.id}')" title="Edit subtask">✎</button>
                         <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteSubtask('${t.id}','${sub.id}')" title="Delete subtask">✕</button>
                       </div>
                     </div>
@@ -4503,7 +4502,6 @@ function renderTodoView(tasks) {
             ${running
               ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
               : `<button class="btn btn-xs" onclick="startTimer('${t.id}')">▶ Start</button>`}
-            <button class="btn btn-xs" onclick="openTaskModal('${t.id}')">Edit Task</button>
             <button class="btn btn-xs" onclick="duplicateTask('${t.id}')">📋 Copy</button>
           </div>
           <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteTask('${t.id}')">Delete</button>
@@ -4542,7 +4540,7 @@ function renderKanban(tasks) {
               const subs = t.subtasks || [];
               const doneSubs = subs.filter(s => s.status === 'Done').length;
               return `
-                <div class="kanban-card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${t.id}')">
+                <div class="kanban-card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${t.id}')" onclick="openTaskModal('${t.id}')" title="Click to edit task">
                   <div style="font-weight:700;font-size:0.88rem;margin-bottom:6px;">
                     ${blocker ? '<span title="Blocked by ' + esc(blocker.title) + '">⚠️ </span>' : ''}${esc(t.title)}
                   </div>
@@ -4555,11 +4553,10 @@ function renderKanban(tasks) {
                     ${t.dueDate ? ` • 📅 ${esc(t.dueDate)}` : ''}
                     ${subs.length ? ` • ☑ ${doneSubs}/${subs.length}` : ''}
                   </div>
-                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;" onclick="event.stopPropagation()">
                     ${isTimerRunningFor(t.id, null)
                       ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
                       : `<button class="btn btn-xs" onclick="startTimer('${t.id}')">▶ Timer</button>`}
-                    <button class="btn btn-xs btn-ghost" onclick="openTaskModal('${t.id}')">Edit</button>
                   </div>
                 </div>
               `;
@@ -9435,7 +9432,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.35';
+const CADENCE_VERSION = 'v1.36';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
