@@ -2041,7 +2041,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.29</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.30</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2078,7 +2078,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.29 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.30 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2261,6 +2261,7 @@ async function loadState() {
       state.savedTaskFilters = idbData.savedTaskFilters || [];
       state.defaultTaskFilter = idbData.defaultTaskFilter || null;
       state.activeTimer = idbData.activeTimer || null;
+      ensureAllProjectsHaveCalendarEventsTask();
       applyDefaultTaskFilterOnLoad();
       return;
     }
@@ -2284,6 +2285,7 @@ async function loadState() {
       state.savedTaskFilters = parsed.savedTaskFilters || [];
       state.defaultTaskFilter = parsed.defaultTaskFilter || null;
       state.activeTimer = parsed.activeTimer || null;
+      ensureAllProjectsHaveCalendarEventsTask();
       applyDefaultTaskFilterOnLoad();
       saveState(); // migrate into IndexedDB
       return;
@@ -2407,6 +2409,7 @@ function seedStarterData() {
       note: 'Drafted initial headline ideas'
     }
   ];
+  ensureAllProjectsHaveCalendarEventsTask();
   saveState();
 }
 
@@ -2792,6 +2795,7 @@ function importBackup(event) {
       state.settings = Object.assign({ proxyUrl: '', calendarIcsUrl: '', myTeam: '' }, parsed.settings || {});
       state.activeTimer = null;
       state.ui.taskFilters.defaultApplied = false;
+      ensureAllProjectsHaveCalendarEventsTask();
       applyDefaultTaskFilterOnLoad();
       saveState();
       updateTimerUI();
@@ -3260,6 +3264,7 @@ function saveProjectForm(e, projectId) {
   } else {
     const newProj = { id: uid('proj'), archived: false, ...payload };
     state.projects.push(newProj);
+    ensureProjectCalendarEventsTask(newProj.id);
     if (isDefault) state.ui.taskFilters.projectId = newProj.id;
     showToast('Project created');
   }
@@ -4510,6 +4515,7 @@ function toggleSubtaskDone(taskId, subId) {
   const wasDone = s.status === 'Done';
   s.status = wasDone ? 'To do' : 'Done';
   orderTaskSubtasks(t);
+  syncCalendarContainerStatus(t);
   saveState();
   render();
 }
@@ -5114,6 +5120,8 @@ function saveSubtaskForm(e, taskId, subId) {
     showToast('Subtask added');
   }
   if (payload.assignee) ensureAssigneeRecord(payload.assignee);
+  orderTaskSubtasks(t);
+  syncCalendarContainerStatus(t);
   saveState();
   closeModal();
   render();
@@ -5126,6 +5134,7 @@ function deleteSubtask(taskId, subId) {
     stopActiveTimer(true);
   }
   t.subtasks = (t.subtasks || []).filter(s => s.id !== subId);
+  syncCalendarContainerStatus(t);
   saveState();
   render();
   showToast('Subtask deleted');
@@ -5136,40 +5145,46 @@ function openMoveSubtaskModal(taskId, subId) {
   if (!parentTask) return;
   const sub = (parentTask.subtasks || []).find(s => s.id === subId);
   if (!sub) return;
-  const activeProjects = state.projects.filter(p => !p.archived);
-  if (activeProjects.length === 0) {
+  const isCalItem = Boolean(isCalendarContainerTask(parentTask) || sub.icsUid);
+  const activeProjects = state.projects.filter(p => !p.archived && (!isCalItem || p.id !== parentTask.projectId));
+  const candidateProjects = activeProjects.length > 0 ? activeProjects : state.projects.filter(p => !p.archived);
+  if (candidateProjects.length === 0) {
     alert('Create a project first before moving this item.');
     return;
   }
-  const defaultProjId = activeProjects[0].id;
+  const defaultProjId = candidateProjects[0].id;
   openModal(`
     <div class="modal-header">
       <h3>📁 Move to Project</h3>
       <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
     </div>
     <p class="field-hint" style="margin-bottom:12px;">
-      Move <strong>${esc(sub.title)}</strong> out of <em>${esc(parentTask.title)}</em> so it lives permanently as its own task under the chosen project.
+      ${isCalItem
+        ? `Move <strong>${esc(sub.title)}</strong> into the selected project's <strong>Imported Calendar Events</strong> task as a subtask.`
+        : `Move <strong>${esc(sub.title)}</strong> out of <em>${esc(parentTask.title)}</em> so it lives permanently as its own task under the chosen project.`}
     </p>
     <form onsubmit="executeMoveSubtask(event, '${taskId}', '${subId}')">
-      <div class="form-row">
+      <div class="${isCalItem ? '' : 'form-row'}">
         <div class="form-group">
           <label>Target Project *</label>
-          <select id="mvProject" required onchange="populateMoveStageDropdown(this.value)">
-            ${activeProjects.map(p => `<option value="${p.id}" ${p.id === defaultProjId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+          <select id="mvProject" required ${isCalItem ? '' : 'onchange="populateMoveStageDropdown(this.value)"'}>
+            ${candidateProjects.map(p => `<option value="${p.id}" ${p.id === defaultProjId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group">
-          <label>Stage (optional)</label>
-          <select id="mvStage"></select>
-        </div>
+        ${isCalItem ? '' : `
+          <div class="form-group">
+            <label>Stage (optional)</label>
+            <select id="mvStage"></select>
+          </div>
+        `}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Move to Project</button>
+        <button type="submit" class="btn btn-primary">${isCalItem ? 'Move to Imported Calendar Events' : 'Move to Project'}</button>
       </div>
     </form>
   `);
-  populateMoveStageDropdown(defaultProjId);
+  if (!isCalItem) populateMoveStageDropdown(defaultProjId);
 }
 
 function populateMoveStageDropdown(projectId) {
@@ -5190,10 +5205,44 @@ function executeMoveSubtask(e, taskId, subId) {
   if (subIdx === -1) return;
   const sub = parentTask.subtasks[subIdx];
   const targetProjectId = document.getElementById('mvProject').value;
-  const targetStageId = document.getElementById('mvStage').value;
+  const targetStageId = document.getElementById('mvStage')?.value || '';
+  const isCalendarEventItem = Boolean(isCalendarContainerTask(parentTask) || sub.icsUid);
+
+  if (isCalendarEventItem) {
+    const destTask = ensureProjectCalendarEventsTask(targetProjectId);
+    if (destTask.id === parentTask.id) {
+      closeModal();
+      showToast('Already in this project\'s Imported Calendar Events');
+      return;
+    }
+    parentTask.subtasks.splice(subIdx, 1);
+    destTask.subtasks.push(sub);
+    orderTaskSubtasks(destTask);
+
+    // Re-link any existing time entries or active timer to the destination project's Imported Calendar Events subtask
+    state.timeEntries.forEach(entry => {
+      if (entry.taskId === taskId && entry.subtaskId === subId) {
+        entry.projectId = targetProjectId;
+        entry.taskId = destTask.id;
+        entry.subtaskId = sub.id;
+      }
+    });
+    if (state.activeTimer && state.activeTimer.taskId === taskId && state.activeTimer.subtaskId === subId) {
+      state.activeTimer.taskId = destTask.id;
+      state.activeTimer.subtaskId = sub.id;
+    }
+
+    syncCalendarContainerStatus(parentTask);
+    syncCalendarContainerStatus(destTask);
+    saveState();
+    closeModal();
+    render();
+    const proj = getProject(targetProjectId);
+    showToast(`Moved to ${proj ? proj.name : 'project'} › Imported Calendar Events`);
+    return;
+  }
 
   const newTaskId = uid('task');
-  const isCalendarEventItem = Boolean(parentTask.isCalendarInbox || sub.icsUid);
   const newTask = {
     id: newTaskId,
     projectId: targetProjectId,
@@ -5201,7 +5250,7 @@ function executeMoveSubtask(e, taskId, subId) {
     title: sub.title,
     assignee: sub.assignee || '',
     description: sub.description || '',
-    dueDate: isCalendarEventItem ? '' : (sub.dueDate || ''),
+    dueDate: sub.dueDate || '',
     priority: 'Medium',
     status: sub.status || 'To do',
     billableOverride: 'inherit',
@@ -6752,6 +6801,7 @@ function saveQuickLogActual(e, taskId, subtaskId) {
     if (sub) {
       sub.status = 'Done';
       orderTaskSubtasks(t);
+      syncCalendarContainerStatus(t);
     } else {
       const wasDone = t.status === 'Done';
       t.status = 'Done';
@@ -7231,6 +7281,7 @@ function renderCalendar(el) {
         <button class="btn btn-sm btn-primary" id="syncCalUrlBtn" onclick="importCalendarFromUrl()" title="Fetch & import events directly from your configured Google Calendar / Outlook public .ics URL">🔄 Sync URL</button>
         <button class="btn btn-sm" onclick="exportCalendarICS()" title="Download an .ics file to import into Google Calendar or Outlook">⬇️ Export .ics</button>
         <button class="btn btn-sm" onclick="document.getElementById('icsImportInput').click()" title="Import events from a local .ics file">⬆️ Import .ics</button>
+        <button class="btn btn-sm" style="color:var(--danger)" onclick="openClearCalendarEventsModal()" title="Clear imported calendar events for all projects or a selected project">🗑️ Clear Imported</button>
         <input type="file" id="icsImportInput" accept=".ics,text/calendar" style="display:none" onchange="importCalendarICS(event)" />
       </div>
     </div>
@@ -7275,18 +7326,22 @@ function renderCalPill(item) {
   if (item.kind === 'planned-task') {
     const tLbl = item.time ? `${item.time} ` : '';
     const dur = item.estHours ? ` (${item.estHours}h)` : '';
-    return `<div class="cal-pill pill-planned" draggable="true"
+    const doneStyle = item.status === 'Done' ? 'text-decoration:line-through;opacity:0.75;' : '';
+    const icon = item.status === 'Done' ? '✓' : '🗓';
+    return `<div class="cal-pill pill-planned" style="${doneStyle}" draggable="true"
       ondragstart="calDragStart(event, { source: 'cal', kind: 'planned-task', taskId: '${item.taskId}', subtaskId: null })"
       onclick="openTaskModal('${item.taskId}')"
-      title="Planned Task: ${esc(item.title)}${dur} — Drag to reschedule or click to edit">🗓 ${esc(tLbl + item.title + dur)}</div>`;
+      title="Planned Task: ${esc(item.title)}${dur} — Drag to reschedule or click to edit">${icon} ${esc(tLbl + item.title + dur)}</div>`;
   }
   if (item.kind === 'planned-subtask') {
     const tLbl = item.time ? `${item.time} ` : '';
     const dur = item.estHours ? ` (${item.estHours}h)` : '';
-    return `<div class="cal-pill pill-subtask" draggable="true"
+    const doneStyle = item.status === 'Done' ? 'text-decoration:line-through;opacity:0.75;' : '';
+    const icon = item.status === 'Done' ? '✓' : '↳';
+    return `<div class="cal-pill pill-subtask" style="${doneStyle}" draggable="true"
       ondragstart="calDragStart(event, { source: 'cal', kind: 'planned-subtask', taskId: '${item.taskId}', subtaskId: '${item.subtaskId}' })"
       onclick="openSubtaskModal('${item.taskId}','${item.subtaskId}')"
-      title="Planned Subtask: ${esc(item.title)}${dur} — Drag to reschedule or click to edit">↳ ${esc(tLbl + item.shortTitle + dur)}</div>`;
+      title="Planned Subtask: ${esc(item.title)}${dur} — Drag to reschedule or click to edit">${icon} ${esc(tLbl + item.shortTitle + dur)}</div>`;
   }
   if (item.kind === 'due-task') {
     return `<div class="cal-pill pill-due" draggable="true"
@@ -7448,6 +7503,7 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
       existing.durationSeconds = secs;
     } else {
       const category = (sub && sub.category) ? sub.category : t.category;
+      const effDate = getEffectiveTimeEntryDate(dateStr);
       state.timeEntries.unshift({
         id: uid('time'),
         projectId: t.projectId,
@@ -7455,14 +7511,15 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
         subtaskId: subtaskId || null,
         category,
         billable: isTaskBillable(t),
-        date: getEffectiveTimeEntryDate(dateStr),
+        date: effDate,
         durationSeconds: secs,
-        note: getEffectiveTimeEntryDate(dateStr) !== dateStr ? `Logged from Calendar [Weekend time counted toward ${getEffectiveTimeEntryDate(dateStr)}]` : 'Logged from Calendar'
+        note: effDate !== dateStr ? `Attended (logged from Calendar) [Weekend time counted toward ${effDate}]` : 'Attended (logged from Calendar)'
       });
     }
     if (sub) {
       sub.status = 'Done';
       orderTaskSubtasks(t);
+      syncCalendarContainerStatus(t);
     } else {
       const wasDone = t.status === 'Done';
       t.status = 'Done';
@@ -7470,7 +7527,7 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
     }
     saveState();
     render();
-    showToast(`Logged ${hrs}h to Time Tracker`);
+    showToast(`Marked attended & complete (${hrs}h logged)`);
   } else {
     if (existing) {
       state.timeEntries = state.timeEntries.filter(e => e.id !== existing.id);
@@ -7478,10 +7535,13 @@ function toggleCalendarItemActualCheck(taskId, subtaskId, dateStr, checked) {
     if (sub) {
       sub.status = 'To do';
       orderTaskSubtasks(t);
-    } else t.status = 'To do';
+      syncCalendarContainerStatus(t);
+    } else {
+      t.status = 'To do';
+    }
     saveState();
     render();
-    showToast('Removed time entry from Time Tracker');
+    showToast('Marked unattended & removed time entry');
   }
 }
 
@@ -7685,19 +7745,20 @@ function renderCalendarDay(cur) {
       ? `draggable="true" ondragstart="calDragStart(event, { source: 'cal', kind: '${blk.kind}', taskId: '${blk.taskId}', subtaskId: ${subArg} })"`
       : '';
 
+    const isAttended = Boolean(blk.logged || blk.status === 'Done');
     const labelText = blk.kind === 'planned-subtask' ? `↳ ${blk.shortTitle}` : blk.title;
     const planNote = (blk.estHours && blk.estHours !== blk.effHours) ? ` (Plan ${blk.estHours}h)` : '';
-    const statusTag = blk.logged ? '✓ Logged' : 'Actual';
+    const statusTag = isAttended ? '✓ Attended' : 'Planned';
 
     html += `
-      <div class="cal-day-block ${cls}" ${dragAttr}
+      <div class="cal-day-block ${isAttended ? 'blk-logged' : cls}" ${dragAttr}
         style="top:${topPx}px;height:${heightPx}px;left:calc(${leftPct}% + 3px);width:calc(${widthPct}% - 6px);">
         <div class="cal-day-block-header">
-          ${isTaskLike ? `<input type="checkbox" ${blk.logged ? 'checked' : ''}
+          ${isTaskLike ? `<input type="checkbox" ${isAttended ? 'checked' : ''}
             onclick="event.stopPropagation()"
             onchange="toggleCalendarItemActualCheck('${blk.taskId}', ${subArg}, '${dStr}', this.checked)"
-            title="${blk.logged ? 'Logged to Time Tracker (uncheck to remove)' : 'Check to log actual time to Time Tracker'}" />` : ''}
-          <span class="cal-day-block-title" onclick="${clickAction}" title="${esc(blk.title)}">${esc(labelText)}</span>
+            title="${isAttended ? 'Attended & completed (uncheck to undo)' : 'Mark as attended & complete (logs actual time)'}" />` : ''}
+          <span class="cal-day-block-title" style="${isAttended ? 'text-decoration:line-through;opacity:0.85;' : ''}" onclick="${clickAction}" title="${esc(blk.title)}">${esc(labelText)}</span>
           <span class="cal-dur-live" style="font-size:0.7rem;font-weight:700;white-space:nowrap;">${blk.time}–${endStr} • ${blk.effHours}h</span>
         </div>
         ${heightPx >= 36 ? `<div class="cal-day-block-meta">${statusTag}: <strong>${blk.effHours}h</strong>${planNote}</div>` : ''}
@@ -7860,8 +7921,87 @@ function exportCalendarICS() {
   showToast('Calendar .ics file downloaded');
 }
 
+function isCalendarContainerTask(t) {
+  if (!t) return false;
+  return Boolean(t.isCalendarInbox || t.isProjectCalendarEvents || (t.title || '').trim().toLowerCase() === 'imported calendar events');
+}
+
+function syncCalendarContainerStatus(t) {
+  if (!isCalendarContainerTask(t)) return;
+  const subs = t.subtasks || [];
+  if (subs.length === 0) {
+    t.status = 'To do';
+  } else if (subs.every(s => s.status === 'Done')) {
+    t.status = 'Done';
+  } else {
+    t.status = 'In progress';
+  }
+}
+
+function ensureProjectCalendarEventsTask(projectId) {
+  const proj = getProject(projectId);
+  if (!proj) return ensureCalendarInboxTask();
+  let calTask = state.tasks.find(t => t.projectId === proj.id && isCalendarContainerTask(t));
+  if (!calTask) {
+    const isGenericInbox = Boolean(proj.isCalendarProject || (proj.name || '').trim().toLowerCase() === 'calendar');
+    calTask = {
+      id: uid('task'),
+      projectId: proj.id,
+      stageId: (proj.stages && proj.stages[0]) ? proj.stages[0].id : '',
+      title: 'Imported Calendar Events',
+      description: isGenericInbox
+        ? 'Events imported from .ics files appear here as subtasks. Click "Move" on any subtask to move it into a project\'s Imported Calendar Events.'
+        : 'Calendar events imported or moved to this project.',
+      dueDate: '',
+      priority: 'Medium',
+      status: 'To do',
+      billableOverride: 'inherit',
+      category: 'Administrative',
+      externalRef: '',
+      blockedByTaskId: '',
+      plannedDate: '',
+      plannedStartTime: '',
+      estimatedHours: 0,
+      isCalendarInbox: isGenericInbox,
+      isProjectCalendarEvents: !isGenericInbox,
+      subtasks: []
+    };
+    state.tasks.push(calTask);
+  }
+  if (!Array.isArray(calTask.subtasks)) calTask.subtasks = [];
+  return calTask;
+}
+
+function ensureAllProjectsHaveCalendarEventsTask() {
+  (state.projects || []).forEach(p => {
+    if (!p.archived) {
+      ensureProjectCalendarEventsTask(p.id);
+    }
+  });
+}
+
+function matchProjectByTitlePrefix(eventTitle) {
+  const normTitle = String(eventTitle || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  if (!normTitle) return null;
+  const candidates = (state.projects || [])
+    .filter(p => !p.archived && !p.isCalendarProject && (p.name || '').trim().toLowerCase() !== 'calendar' && (p.name || '').trim().length > 0)
+    .sort((a, b) => b.name.trim().length - a.name.trim().length);
+
+  for (const p of candidates) {
+    const normProj = p.name.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (normTitle === normProj) return p;
+    if (normTitle.startsWith(normProj)) {
+      const nextChar = normTitle.slice(normProj.length, normProj.length + 1);
+      if (/^[\s:\-–—\/|\[\(\.,_]/.test(nextChar)) {
+        return p;
+      }
+    }
+  }
+  return null;
+}
+
 function ensureCalendarInboxTask() {
-  // Find or create a dedicated "Calendar" project and "Calendar Imports" parent task
+  // Find or create a dedicated "Calendar" project and "Imported Calendar Events" parent task
   let calProj = state.projects.find(p => p.isCalendarProject) || state.projects.find(p => p.name.toLowerCase() === 'calendar');
   if (!calProj) {
     calProj = {
@@ -7878,31 +8018,145 @@ function ensureCalendarInboxTask() {
     };
     state.projects.push(calProj);
   }
-  let calTask = state.tasks.find(t => t.isCalendarInbox) || state.tasks.find(t => t.projectId === calProj.id && t.title === 'Imported Calendar Events');
-  if (!calTask) {
-    calTask = {
-      id: uid('task'),
-      projectId: calProj.id,
-      stageId: (calProj.stages && calProj.stages[0]) ? calProj.stages[0].id : '',
-      title: 'Imported Calendar Events',
-      description: 'Events imported from .ics files appear here as subtasks. Click "Move" on any subtask to assign it to a project permanently.',
-      dueDate: '',
-      priority: 'Medium',
-      status: 'In progress',
-      billableOverride: 'inherit',
-      category: 'Administrative',
-      externalRef: '',
-      blockedByTaskId: '',
-      plannedDate: '',
-      plannedStartTime: '',
-      estimatedHours: 0,
-      isCalendarInbox: true,
-      subtasks: []
-    };
-    state.tasks.unshift(calTask);
+  return ensureProjectCalendarEventsTask(calProj.id);
+}
+
+function countImportedCalendarEventsForScope(scopeProjectId, keepCompleted = false) {
+  let count = 0;
+  const matchesScope = (projId) => scopeProjectId === '__all__' || projId === scopeProjectId;
+  state.tasks.forEach(t => {
+    if (!matchesScope(t.projectId)) return;
+    if (isCalendarContainerTask(t)) {
+      (t.subtasks || []).forEach(s => {
+        if (!keepCompleted || s.status !== 'Done') count++;
+      });
+    } else {
+      if (t.icsUid && (!keepCompleted || t.status !== 'Done')) count++;
+      (t.subtasks || []).forEach(s => {
+        if (s.icsUid && (!keepCompleted || s.status !== 'Done')) count++;
+      });
+    }
+  });
+  if (scopeProjectId === '__all__') {
+    count += (state.calendarEvents || []).length;
   }
-  if (!calTask.subtasks) calTask.subtasks = [];
-  return calTask;
+  return count;
+}
+
+function updateClearCalPreview() {
+  const scope = document.getElementById('clearCalScope')?.value || '__all__';
+  const keepDone = Boolean(document.getElementById('clearCalKeepDone')?.checked);
+  const cnt = countImportedCalendarEventsForScope(scope, keepDone);
+  const lbl = document.getElementById('clearCalCountLbl');
+  const btn = document.getElementById('clearCalSubmitBtn');
+  if (lbl) {
+    lbl.textContent = cnt > 0
+      ? `${cnt} imported calendar event(s) will be removed.`
+      : 'No imported calendar events match this selection.';
+  }
+  if (btn) btn.disabled = cnt === 0;
+}
+
+function openClearCalendarEventsModal() {
+  const totalAll = countImportedCalendarEventsForScope('__all__', false);
+  const projOptions = state.projects.map(p => {
+    const cnt = countImportedCalendarEventsForScope(p.id, false);
+    return { id: p.id, name: p.name, cnt };
+  });
+
+  openModal(`
+    <div class="modal-header">
+      <h3>🗑️ Clear Imported Calendar Events</h3>
+      <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
+    </div>
+    <p class="field-hint" style="margin-bottom:12px;">
+      Choose whether to clear imported calendar events across <strong>all projects</strong> or only for a <strong>specific project</strong>. Regular tasks and logged time entries are preserved.
+    </p>
+    <form onsubmit="executeClearCalendarEvents(event)">
+      <div class="form-group">
+        <label>Select Scope</label>
+        <select id="clearCalScope" onchange="updateClearCalPreview()">
+          <option value="__all__">All Projects (${totalAll} event${totalAll === 1 ? '' : 's'})</option>
+          ${projOptions.map(po => `<option value="${po.id}">📁 ${esc(po.name)} (${po.cnt} event${po.cnt === 1 ? '' : 's'})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
+          <input type="checkbox" id="clearCalKeepDone" onchange="updateClearCalPreview()" />
+          Keep attended / completed calendar events
+        </label>
+      </div>
+      <div id="clearCalCountLbl" style="font-size:0.86rem;font-weight:700;color:var(--danger);margin-bottom:10px;"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" id="clearCalSubmitBtn" class="btn btn-danger">🗑️ Clear Events</button>
+      </div>
+    </form>
+  `);
+  updateClearCalPreview();
+}
+
+function executeClearCalendarEvents(e) {
+  e.preventDefault();
+  const scope = document.getElementById('clearCalScope')?.value || '__all__';
+  const keepDone = Boolean(document.getElementById('clearCalKeepDone')?.checked);
+  const countToRemove = countImportedCalendarEventsForScope(scope, keepDone);
+  if (countToRemove === 0) {
+    closeModal();
+    return;
+  }
+  const scopeLabel = scope === '__all__' ? 'all projects' : (getProject(scope)?.name || 'selected project');
+  if (!confirm(`Clear ${countToRemove} imported calendar event(s) from ${scopeLabel}?`)) return;
+
+  let removed = 0;
+  const matchesScope = (projId) => scope === '__all__' || projId === scope;
+  const legacyTasksToRemove = new Set();
+
+  state.tasks.forEach(t => {
+    if (!matchesScope(t.projectId)) return;
+    if (isCalendarContainerTask(t)) {
+      const before = (t.subtasks || []).length;
+      t.subtasks = (t.subtasks || []).filter(s => {
+        const shouldRemove = !keepDone || s.status !== 'Done';
+        if (shouldRemove && state.activeTimer && state.activeTimer.taskId === t.id && state.activeTimer.subtaskId === s.id) {
+          stopActiveTimer(true);
+        }
+        return !shouldRemove;
+      });
+      removed += (before - t.subtasks.length);
+      syncCalendarContainerStatus(t);
+    } else {
+      if (t.icsUid && (!keepDone || t.status !== 'Done')) {
+        if (state.activeTimer && state.activeTimer.taskId === t.id) stopActiveTimer(true);
+        legacyTasksToRemove.add(t.id);
+        removed++;
+      } else if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
+        const before = t.subtasks.length;
+        t.subtasks = t.subtasks.filter(s => {
+          const shouldRemove = Boolean(s.icsUid) && (!keepDone || s.status !== 'Done');
+          if (shouldRemove && state.activeTimer && state.activeTimer.taskId === t.id && state.activeTimer.subtaskId === s.id) {
+            stopActiveTimer(true);
+          }
+          return !shouldRemove;
+        });
+        removed += (before - t.subtasks.length);
+      }
+    }
+  });
+
+  if (legacyTasksToRemove.size > 0) {
+    state.tasks = state.tasks.filter(t => !legacyTasksToRemove.has(t.id));
+  }
+
+  if (scope === '__all__' && Array.isArray(state.calendarEvents) && state.calendarEvents.length > 0) {
+    removed += state.calendarEvents.length;
+    state.calendarEvents = [];
+  }
+
+  saveState();
+  closeModal();
+  render();
+  showToast(`Cleared ${removed} imported calendar event${removed === 1 ? '' : 's'}`);
 }
 
 function findExistingIcsItem(icsKey, title, date) {
@@ -8487,28 +8741,60 @@ function executeFilteredIcsImport(e) {
   e.preventDefault();
   const chosen = getFilteredPendingIcs();
   const trimDesc = document.getElementById('icsTrimDesc')?.checked;
-  const calTask = ensureCalendarInboxTask();
+  let fallbackInboxTask = null;
   let added = 0;
   let updated = 0;
+  let autoAssigned = 0;
+  const touchedContainers = new Set();
 
   chosen.forEach(ev => {
     let desc = ev.description || '';
     if (trimDesc && desc.length > 250) desc = desc.slice(0, 250) + '…';
 
+    const matchedProj = matchProjectByTitlePrefix(ev.title);
     const existing = findExistingIcsItem(ev.icsUid, ev.title, ev.date);
     if (existing) {
-      // Update existing event (whether still under Calendar or already moved to a Project)
       const target = existing.item;
       target.title = ev.title;
       target.plannedDate = ev.date;
       target.plannedStartTime = ev.startTime;
       target.estimatedHours = ev.estimatedHours;
       if (desc) target.description = desc;
+
+      // If still in generic Calendar inbox and now matches a project prefix, auto-move as subtask
+      if (matchedProj && existing.isSubtask && existing.parent && existing.parent.isCalendarInbox) {
+        const destTask = ensureProjectCalendarEventsTask(matchedProj.id);
+        if (destTask.id !== existing.parent.id) {
+          existing.parent.subtasks = (existing.parent.subtasks || []).filter(s => s.id !== target.id);
+          destTask.subtasks.push(target);
+          state.timeEntries.forEach(entry => {
+            if (entry.taskId === existing.parent.id && entry.subtaskId === target.id) {
+              entry.projectId = matchedProj.id;
+              entry.taskId = destTask.id;
+            }
+          });
+          if (state.activeTimer && state.activeTimer.taskId === existing.parent.id && state.activeTimer.subtaskId === target.id) {
+            state.activeTimer.taskId = destTask.id;
+          }
+          touchedContainers.add(existing.parent);
+          touchedContainers.add(destTask);
+          autoAssigned++;
+        }
+      }
       updated++;
       return;
     }
 
-    calTask.subtasks.push({
+    let destTask;
+    if (matchedProj) {
+      destTask = ensureProjectCalendarEventsTask(matchedProj.id);
+      autoAssigned++;
+    } else {
+      if (!fallbackInboxTask) fallbackInboxTask = ensureCalendarInboxTask();
+      destTask = fallbackInboxTask;
+    }
+
+    destTask.subtasks.push({
       id: uid('sub'),
       title: ev.title,
       description: desc,
@@ -8520,7 +8806,13 @@ function executeFilteredIcsImport(e) {
       estimatedHours: ev.estimatedHours,
       icsUid: ev.icsUid
     });
+    touchedContainers.add(destTask);
     added++;
+  });
+
+  touchedContainers.forEach(ct => {
+    orderTaskSubtasks(ct);
+    syncCalendarContainerStatus(ct);
   });
 
   pendingIcsEvents = [];
@@ -8532,6 +8824,7 @@ function executeFilteredIcsImport(e) {
     const parts = [];
     if (added > 0) parts.push(`${added} new`);
     if (updated > 0) parts.push(`${updated} updated`);
+    if (autoAssigned > 0) parts.push(`${autoAssigned} auto-assigned to projects`);
     showToast(`Calendar sync complete: ${parts.join(', ')}`);
   } else {
     showToast('No events matched the selected date range');
@@ -8919,7 +9212,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.29';
+const CADENCE_VERSION = 'v1.30';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
