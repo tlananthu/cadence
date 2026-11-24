@@ -754,10 +754,39 @@
   }
   .day-bar {
     width: 24px;
-    background: var(--primary);
     border-radius: 6px 6px 0 0;
     min-height: 2px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: var(--border);
     transition: height 0.2s;
+  }
+  .day-bar-nonbill {
+    width: 100%;
+    background: var(--text-muted);
+    opacity: 0.45;
+  }
+  .day-bar-bill {
+    width: 100%;
+    background: var(--success);
+  }
+  .day-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .day-legend-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    margin-right: 4px;
+    vertical-align: middle;
   }
   .day-val { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
   .day-lbl { font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; white-space: nowrap; }
@@ -2142,7 +2171,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.36</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.37</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2179,7 +2208,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.36 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.37 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -6971,13 +7000,17 @@ function renderReports(el) {
     return { ...r, earned };
   }).sort((a, b) => b.sec - a.sec);
 
-  // By Day
+  // By Day (split into Billable & Non-billable)
   const byDay = {};
   entries.forEach(e => {
-    byDay[e.date] = (byDay[e.date] || 0) + (e.durationSeconds || 0);
+    if (!byDay[e.date]) byDay[e.date] = { total: 0, billable: 0, nonBillable: 0 };
+    const dur = e.durationSeconds || 0;
+    byDay[e.date].total += dur;
+    if (e.billable) byDay[e.date].billable += dur;
+    else byDay[e.date].nonBillable += dur;
   });
   const dayRows = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxDaySec = Math.max(1, ...dayRows.map(d => d[1]));
+  const maxDaySec = Math.max(1, ...dayRows.map(d => d[1].total));
 
   // Planned vs Actual for tasks & subtasks within date bounds
   const pvaRows = [];
@@ -7077,15 +7110,26 @@ function renderReports(el) {
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title">Hours by Day</div></div>
+        <div class="card-header">
+          <div class="card-title">Hours by Day</div>
+          <div class="day-legend">
+            <span><span class="day-legend-dot" style="background:var(--success)"></span>Billable</span>
+            <span><span class="day-legend-dot" style="background:var(--text-muted);opacity:0.45"></span>Non-billable</span>
+          </div>
+        </div>
         ${dayRows.length === 0 ? `<div class="empty-state">No time logged in this date range.</div>` : `
           <div class="day-chart">
-            ${dayRows.map(([date, sec]) => {
-              const hPct = Math.max(4, Math.round((sec / maxDaySec) * 100));
+            ${dayRows.map(([date, d]) => {
+              const hPct = Math.max(4, Math.round((d.total / maxDaySec) * 100));
+              const billShare = d.total > 0 ? (d.billable / d.total) * 100 : 0;
+              const nonBillShare = d.total > 0 ? (d.nonBillable / d.total) * 100 : 0;
               return `
-                <div class="day-col" title="${date}: ${(sec/3600).toFixed(2)} hours">
-                  <div class="day-val">${(sec/3600).toFixed(1)}h</div>
-                  <div class="day-bar" style="height:${hPct}%"></div>
+                <div class="day-col" title="${date}: ${(d.total/3600).toFixed(2)}h total (Billable: ${(d.billable/3600).toFixed(2)}h, Non-billable: ${(d.nonBillable/3600).toFixed(2)}h)">
+                  <div class="day-val">${(d.total/3600).toFixed(1)}h</div>
+                  <div class="day-bar" style="height:${hPct}%">
+                    ${nonBillShare > 0 ? `<div class="day-bar-nonbill" style="height:${nonBillShare.toFixed(1)}%"></div>` : ''}
+                    ${billShare > 0 ? `<div class="day-bar-bill" style="height:${billShare.toFixed(1)}%"></div>` : ''}
+                  </div>
                   <div class="day-lbl">${date.slice(5)}</div>
                 </div>
               `;
@@ -9432,7 +9476,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.36';
+const CADENCE_VERSION = 'v1.37';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
