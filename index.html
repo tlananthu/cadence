@@ -1322,6 +1322,37 @@
   .cal-resize-handle:hover::after {
     opacity: 0.85;
   }
+  .cal-now-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--danger);
+    z-index: 15;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+  }
+  .cal-now-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--danger);
+    margin-left: -5px;
+    box-shadow: 0 0 0 2px var(--surface);
+    flex-shrink: 0;
+  }
+  .cal-now-label {
+    margin-left: 6px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    line-height: 1.3;
+    box-shadow: var(--shadow);
+  }
 
   
   .sync-meta {
@@ -2041,7 +2072,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.30</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.31</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2078,7 +2109,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.30 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.31 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -7320,6 +7351,9 @@ function renderCalendar(el) {
       </div>
     </div>
   `;
+  if (mode === 'day') {
+    scrollCalendarToNowLine();
+  }
 }
 
 function renderCalPill(item) {
@@ -7768,9 +7802,42 @@ function renderCalendarDay(cur) {
     `;
   });
 
+  if (dStr === todayStr()) {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const nowTopPx = (nowMins / 60) * hourPx;
+    const nowLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    html += `
+      <div class="cal-now-line" id="calNowLine" data-hour-px="${hourPx}" style="top:${nowTopPx}px;">
+        <span class="cal-now-dot"></span>
+        <span class="cal-now-label" id="calNowLabel">${esc(nowLabel)}</span>
+      </div>
+    `;
+  }
+
   html += `</div></div></div>`;
   return html;
 }
+
+function scrollCalendarToNowLine() {
+  const line = document.getElementById('calNowLine');
+  if (!line) return;
+  requestAnimationFrame(() => {
+    line.scrollIntoView({ behavior: 'auto', block: 'center' });
+  });
+}
+
+function updateCalendarNowLine() {
+  const line = document.getElementById('calNowLine');
+  if (!line) return;
+  const hourPx = Number(line.dataset.hourPx || 56);
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  line.style.top = `${(nowMins / 60) * hourPx}px`;
+  const lbl = document.getElementById('calNowLabel');
+  if (lbl) lbl.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+setInterval(updateCalendarNowLine, 30000);
 
 function calDragStart(event, payload) {
   event.dataTransfer.setData('application/json', JSON.stringify(payload));
@@ -9212,7 +9279,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.30';
+const CADENCE_VERSION = 'v1.31';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
