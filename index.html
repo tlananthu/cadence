@@ -559,6 +559,15 @@
     break-inside: avoid;
     page-break-inside: avoid;
     vertical-align: top;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .keep-note-card:hover {
+    border-color: var(--primary);
+  }
+  .keep-note-card .card-title {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .hashtag-chip {
     display: inline-flex;
@@ -633,8 +642,19 @@
   }
   .rte-editor ol { padding-left: 22px; margin: 6px 0; }
   .rte-rendered { display: inline; }
-  div.rte-rendered, .note-body { display: block; overflow-x: auto; }
-  .rte-rendered ul, .rte-rendered ol { padding-left: 20px; margin: 4px 0; }
+  div.rte-rendered, .note-body {
+    display: block;
+    overflow-x: auto;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .rte-rendered ul, .rte-rendered ol,
+  .note-body ul, .note-body ol {
+    padding-left: 22px;
+    margin: 6px 0;
+  }
+  .note-body li { margin-bottom: 3px; }
+  .note-body p { margin: 4px 0; }
   .rte-rendered p { margin: 4px 0; }
   .rte-rendered h3 { margin: 6px 0 3px; font-size: 1rem; }
   .rte-editor:focus { border-color: var(--primary); }
@@ -1983,7 +2003,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.27</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.28</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2020,7 +2040,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.27 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.28 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -5491,7 +5511,7 @@ function formatNoteBodyWithHashtags(html) {
         const tagName = tagRaw.slice(1).toLowerCase();
         const span = document.createElement('span');
         span.className = 'hashtag-chip';
-        span.setAttribute('onclick', `toggleNoteHashtagFilter('${tagName.replace(/'/g, "\'")}')`);
+        span.setAttribute('onclick', `event.stopPropagation();toggleNoteHashtagFilter('${tagName.replace(/'/g, "\'")}')`);
         span.setAttribute('title', `Filter notes by ${tagRaw}`);
         span.textContent = tagRaw;
         frag.appendChild(span);
@@ -5563,15 +5583,11 @@ function renderNotesGrid(notes) {
           const dateLabel = new Date(n.createdAt).toLocaleDateString();
           const tags = extractHashtagsFromNote(n);
           return `
-            <div class="card keep-note-card">
+            <div class="card keep-note-card" onclick="openNoteModal('${n.id}')" title="Click to edit note">
               <div class="card-header" style="margin-bottom:10px;">
-                <div>
+                <div style="min-width:0;flex:1;">
                   <div class="card-title">${esc(n.title)}</div>
                   <div style="font-size:0.74rem;color:var(--text-muted)">${dateLabel}</div>
-                </div>
-                <div style="display:flex;gap:4px;">
-                  <button class="btn btn-xs" onclick="openNoteModal('${n.id}')">Edit</button>
-                  <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteNote('${n.id}')">Delete</button>
                 </div>
               </div>
               <div style="font-size:0.88rem;margin-bottom:12px;" class="note-body">${formatNoteBodyWithHashtags(n.body)}</div>
@@ -5579,7 +5595,7 @@ function renderNotesGrid(notes) {
                 ${proj ? `<span class="badge b-todo">📁 ${esc(proj.name)}</span>` : ''}
                 ${task ? `<span class="badge b-todo">✅ ${esc(task.title)}</span>` : ''}
                 ${tags.map(tag => `
-                  <span class="hashtag-chip ${activeTag === tag ? 'active' : ''}" onclick="toggleNoteHashtagFilter('${esc(tag).replace(/'/g, "\'")}')">#${esc(tag)}</span>
+                  <span class="hashtag-chip ${activeTag === tag ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteHashtagFilter('${esc(tag).replace(/'/g, "\'")}')">#${esc(tag)}</span>
                 `).join('')}
               </div>
             </div>
@@ -5627,9 +5643,14 @@ function openNoteModal(noteId = null) {
         <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
         <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Note</button>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <div>
+          ${n ? `<button type="button" class="btn btn-danger" onclick="deleteNote('${n.id}')">Delete</button>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Note</button>
+        </div>
       </div>
     </form>
   `, { wideContent: true });
@@ -6129,6 +6150,7 @@ function deleteNote(id) {
   if (!confirm('Delete this note?')) return;
   state.notes = state.notes.filter(n => n.id !== id);
   saveState();
+  closeModal();
   render();
   showToast('Note deleted');
 }
@@ -8726,7 +8748,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.27';
+const CADENCE_VERSION = 'v1.28';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
