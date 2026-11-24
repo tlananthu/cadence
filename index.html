@@ -784,6 +784,44 @@
   .modal.modal-wide-content {
     max-width: calc(min(1360px, 100vw - var(--sidebar-w)) - 48px);
   }
+  .modal.modal-note-editor {
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+  }
+  .modal.modal-note-editor .modal-header {
+    flex-shrink: 0;
+    margin-bottom: 12px;
+  }
+  .modal.modal-note-editor .note-modal-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .modal.modal-note-editor .note-modal-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .modal.modal-note-editor .rte-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .modal.modal-note-editor .rte-editor {
+    min-height: 240px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .modal.modal-note-editor .modal-footer {
+    flex-shrink: 0;
+    margin-top: 12px;
+    background: var(--surface);
+  }
   @media (max-width: 900px) {
     .modal.modal-wide-content {
       max-width: calc(100vw - 32px);
@@ -2003,7 +2041,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.28</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.29</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2040,7 +2078,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.28 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.29 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2788,12 +2826,16 @@ function confirmResetData() {
 function openModal(html, opts = {}) {
   const box = document.getElementById('modalBox');
   box.classList.toggle('modal-wide-content', Boolean(opts.wideContent));
+  box.classList.toggle('modal-note-editor', Boolean(opts.noteEditor));
   box.innerHTML = html;
   document.getElementById('modalBackdrop').classList.add('open');
 }
 function closeModal() {
   const box = document.getElementById('modalBox');
-  if (box) box.classList.remove('modal-wide-content');
+  if (box) {
+    box.classList.remove('modal-wide-content');
+    box.classList.remove('modal-note-editor');
+  }
   document.getElementById('modalBackdrop').classList.remove('open');
 }
 
@@ -5612,40 +5654,43 @@ function openNoteModal(noteId = null) {
       <h3>${n ? 'Edit Note' : 'New Note'}</h3>
       <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
     </div>
-    <form onsubmit="saveNoteForm(event, '${n ? n.id : ''}')">
-      <div class="form-group">
-        <label>Title *</label>
-        <input type="text" id="nTitle" required value="${esc(n?.title || '')}" placeholder="e.g. Kickoff Meeting Notes" />
-      </div>
-      <div class="form-row">
+    <form class="note-modal-form" onsubmit="saveNoteForm(event, '${n ? n.id : ''}')">
+      <div class="note-modal-scroll">
         <div class="form-group">
-          <label>Link to Project (optional)</label>
-          <select id="nProject">
-            <option value="">Standalone (No Project)</option>
-            ${state.projects.map(p => `<option value="${p.id}" ${n?.projectId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
-          </select>
+          <label>Title *</label>
+          <input type="text" id="nTitle" required value="${esc(n?.title || '')}" placeholder="e.g. Kickoff Meeting Notes" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Link to Project (optional)</label>
+            <select id="nProject">
+              <option value="">Standalone (No Project)</option>
+              ${state.projects.map(p => `<option value="${p.id}" ${n?.projectId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Link to Task (optional)</label>
+            <select id="nTask">
+              <option value="">None</option>
+              ${state.tasks.map(t => `<option value="${t.id}" ${n?.taskId === t.id ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div class="form-group">
-          <label>Link to Task (optional)</label>
-          <select id="nTask">
-            <option value="">None</option>
-            ${state.tasks.map(t => `<option value="${t.id}" ${n?.taskId === t.id ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}
-          </select>
+          <label>Tags (comma-separated)</label>
+          <input type="text" id="nTags" value="${esc((n?.tags || []).join(', '))}" placeholder="e.g. meeting, design, client" />
+        </div>
+        <div class="form-group" style="margin-bottom:4px;">
+          <label>Note Content</label>
+          ${renderRteToolbar('nBody')}
+          <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
+          <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Tags (comma-separated)</label>
-        <input type="text" id="nTags" value="${esc((n?.tags || []).join(', '))}" placeholder="e.g. meeting, design, client" />
-      </div>
-      <div class="form-group">
-        <label>Note Content</label>
-        ${renderRteToolbar('nBody')}
-        <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
-        <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
-      </div>
-      <div class="modal-footer" style="justify-content:space-between;">
-        <div>
+      <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           ${n ? `<button type="button" class="btn btn-danger" onclick="deleteNote('${n.id}')">Delete</button>` : ''}
+          <button type="button" class="btn" onclick="exportNoteToPdf('${n ? n.id : ''}')" title="Print or Save this note as a PDF">🖨️ Export PDF</button>
         </div>
         <div style="display:flex;gap:8px;">
           <button type="button" class="btn" onclick="closeModal()">Cancel</button>
@@ -5653,8 +5698,134 @@ function openNoteModal(noteId = null) {
         </div>
       </div>
     </form>
-  `, { wideContent: true });
+  `, { wideContent: true, noteEditor: true });
   initRichEditorTableSupport('nBody');
+}
+
+function exportNoteToPdf(noteId = '') {
+  const existing = noteId ? state.notes.find(x => x.id === noteId) : null;
+  const title = (document.getElementById('nTitle')?.value || existing?.title || 'Untitled Note').trim() || 'Untitled Note';
+  const bodyHtml = sanitizeNoteHtml(document.getElementById('nBody')?.innerHTML ?? existing?.body ?? '');
+  const projId = document.getElementById('nProject')?.value ?? existing?.projectId ?? '';
+  const taskId = document.getElementById('nTask')?.value ?? existing?.taskId ?? '';
+  const rawTags = document.getElementById('nTags')?.value ?? (existing?.tags || []).join(', ');
+  const tags = rawTags.split(',').map(x => x.trim().replace(/^#+/, '')).filter(Boolean);
+  const proj = projId ? getProject(projId) : null;
+  const task = taskId ? getTask(taskId) : null;
+  const dateStr = existing?.createdAt
+    ? new Date(existing.createdAt).toLocaleDateString()
+    : new Date().toLocaleDateString();
+
+  const metaParts = [
+    `Date: ${dateStr}`,
+    proj ? `Project: ${proj.name}` : '',
+    task ? `Task: ${task.title}` : '',
+    tags.length ? `Tags: ${tags.map(t => '#' + t).join(' ')}` : ''
+  ].filter(Boolean);
+
+  const printHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>${esc(title)}</title>
+<style>
+  @page { margin: 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    color: #0f172a;
+    background: #ffffff;
+    line-height: 1.6;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+  }
+  h1 {
+    font-size: 18pt;
+    margin: 0 0 6px 0;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .meta {
+    font-size: 9.5pt;
+    color: #475569;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #cbd5e1;
+  }
+  .note-content {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .note-content h2, .note-content h3 {
+    margin: 14px 0 6px 0;
+    color: #0f172a;
+  }
+  .note-content p { margin: 6px 0; }
+  .note-content ul, .note-content ol {
+    padding-left: 24px;
+    margin: 8px 0;
+  }
+  .note-content li { margin-bottom: 4px; }
+  .note-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 9.5pt;
+  }
+  .note-content th, .note-content td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+    word-break: break-word;
+  }
+  .note-content th {
+    background: #f1f5f9;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+  <h1>${esc(title)}</h1>
+  <div class="meta">${esc(metaParts.join('  •  '))}</div>
+  <div class="note-content">${bodyHtml || '<p><em>(No content)</em></p>'}</div>
+</body>
+</html>`;
+
+  const oldFrame = document.getElementById('notePrintFrame');
+  if (oldFrame) oldFrame.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'notePrintFrame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(printHtml);
+  doc.close();
+
+  const prevDocTitle = document.title;
+  document.title = title;
+
+  setTimeout(() => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } finally {
+      setTimeout(() => {
+        document.title = prevDocTitle;
+        if (iframe.parentNode) iframe.remove();
+      }, 1000);
+    }
+  }, 150);
 }
 
 const rteLastCellByEditor = {};
@@ -8748,7 +8919,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.28';
+const CADENCE_VERSION = 'v1.29';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
