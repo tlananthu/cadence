@@ -1963,7 +1963,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.25</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.26</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2000,7 +2000,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.25 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.26 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2083,12 +2083,6 @@ async function idbSetState(data) {
     tx.onerror = () => reject(tx.error);
   });
 }
-const DEFAULT_CATEGORIES = ['Slack', 'Jira', 'Support', 'Learning', 'Administrative', 'Dependency'];
-function getCategories() {
-  const custom = state.settings?.categories;
-  if (Array.isArray(custom) && custom.length > 0) return custom;
-  return DEFAULT_CATEGORIES.slice();
-}
 const STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
 const PRIORITIES = ['Low', 'Medium', 'High'];
 
@@ -2102,21 +2096,8 @@ let state = {
   savedTaskFilters: [], // { id, name, description, filters }
   defaultTaskFilter: null, // { filters }
   settings: {
-    jiraBaseUrl: '',
-    supportTool: 'Zendesk', // Zendesk | Freshdesk | Jira Service Management | Other
-    supportBaseUrl: '',
-    slackWebhookUrl: '',
-    slackNotifyCreated: true,
-    slackNotifyCompleted: true,
-    slackNotifyOverdue: true,
     proxyUrl: '',
     calendarIcsUrl: '',
-    jiraEmail: '',
-    jiraApiToken: '',
-    jiraDefaultProjectKey: '',
-    jiraIssueType: 'Task',
-    jiraAutoSyncWorklogs: false,
-    categories: null,
     myTeam: ''
   },
   activeTimer: null, // { taskId, subtaskId, startedAt }
@@ -2128,7 +2109,7 @@ let state = {
     taskViewMode: 'list', // list | todo | kanban
     selectedTodoTaskId: '',
     showArchivedProjects: false,
-    taskFilters: { search: '', projectId: '', stageId: '', category: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: false },
+    taskFilters: { search: '', projectId: '', stageId: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: false },
     noteSearch: '',
     reportRange: 'week', // week | month | custom | all
     reportStart: '',
@@ -2197,7 +2178,7 @@ async function loadState() {
       state.calendarEvents = idbData.calendarEvents || [];
       state.assignees = idbData.assignees || [];
       syncAssigneesFromTasks();
-      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null, myTeam: '' }, idbData.settings || {});
+      state.settings = Object.assign({ proxyUrl: '', calendarIcsUrl: '', myTeam: '' }, idbData.settings || {});
       state.savedTaskFilters = idbData.savedTaskFilters || [];
       state.defaultTaskFilter = idbData.defaultTaskFilter || null;
       state.activeTimer = idbData.activeTimer || null;
@@ -2220,9 +2201,7 @@ async function loadState() {
       state.calendarEvents = parsed.calendarEvents || [];
       state.assignees = parsed.assignees || [];
       syncAssigneesFromTasks();
-      state.assignees = parsed.assignees || [];
-      syncAssigneesFromTasks();
-      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null, myTeam: '' }, parsed.settings || {});
+      state.settings = Object.assign({ proxyUrl: '', calendarIcsUrl: '', myTeam: '' }, parsed.settings || {});
       state.savedTaskFilters = parsed.savedTaskFilters || [];
       state.defaultTaskFilter = parsed.defaultTaskFilter || null;
       state.activeTimer = parsed.activeTimer || null;
@@ -2577,7 +2556,7 @@ function switchView(view) {
     notes: 'Notes',
     time: 'Time Tracker',
     reports: 'Reports',
-    settings: 'Settings & Integrations'
+    settings: 'Settings'
   };
   document.getElementById('pageTitle').textContent = titles[view] || 'Cadence';
   toggleSidebar(false);
@@ -2626,12 +2605,10 @@ function stopActiveTimer(silent = false) {
   const rawElapsedSec = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
   const roundedSec = roundUpTo15MinBlock(rawElapsedSec);
   const task = getTask(taskId);
-  let category = task ? task.category : 'Administrative';
   let note = `Tracked via timer (${formatDuration(rawElapsedSec)} actual → ${formatDuration(roundedSec)})`;
   if (task && subtaskId) {
     const sub = (task.subtasks || []).find(s => s.id === subtaskId);
     if (sub) {
-      category = sub.category || category;
       note = `Subtask: ${sub.title} (${formatDuration(rawElapsedSec)} actual → ${formatDuration(roundedSec)})`;
     }
   }
@@ -2644,7 +2621,6 @@ function stopActiveTimer(silent = false) {
       projectId: task.projectId,
       taskId: task.id,
       subtaskId: subtaskId || null,
-      category,
       billable: isTaskBillable(task),
       date: effDate,
       durationSeconds: roundedSec,
@@ -2734,7 +2710,7 @@ function importBackup(event) {
       syncAssigneesFromTasks();
       state.savedTaskFilters = parsed.savedTaskFilters || [];
       state.defaultTaskFilter = parsed.defaultTaskFilter || null;
-      state.settings = Object.assign({ jiraBaseUrl: '', supportTool: 'Zendesk', supportBaseUrl: '', slackWebhookUrl: '', slackNotifyCreated: true, slackNotifyCompleted: true, slackNotifyOverdue: true, proxyUrl: '', calendarIcsUrl: '', jiraEmail: '', jiraApiToken: '', jiraDefaultProjectKey: '', jiraIssueType: 'Task', jiraAutoSyncWorklogs: false, categories: null, myTeam: '' }, parsed.settings || {});
+      state.settings = Object.assign({ proxyUrl: '', calendarIcsUrl: '', myTeam: '' }, parsed.settings || {});
       state.activeTimer = null;
       state.ui.taskFilters.defaultApplied = false;
       applyDefaultTaskFilterOnLoad();
@@ -2975,7 +2951,6 @@ function renderCompactTaskCard(t) {
       </div>
       <div class="task-meta">
         <button type="button" class="btn-int" onclick="openTasksFromToday({ projectId: '${esc(t.projectId || '')}', status: '__open__' })" title="Filter Tasks by project">📁 ${esc(proj ? proj.name : 'No project')} →</button>
-        <span class="badge b-cat">${esc(t.category)}</span>
         ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
         <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
         ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Repeats ${esc(t.recurrence)}">🔁 ${esc(t.recurrence)}</span>` : ''}
@@ -3029,11 +3004,9 @@ function renderProjects(el) {
                 </div>
               </div>
               ${p.description ? `<p style="font-size:0.86rem;color:var(--text-muted);margin-bottom:10px;">${esc(p.description)}</p>` : ''}
-              ${(p.jiraLink || p.slackLink || p.repoLink) ? `
+              ${p.repoLink ? `
                 <div class="integration-bar" style="margin-bottom:10px;">
-                  ${p.jiraLink ? `<button type="button" class="btn-int" onclick="openProjectToolLink('jira','${p.id}')" title="${esc(p.jiraLink)}">🎫 Project Jira</button>` : ''}
-                  ${p.slackLink ? `<button type="button" class="btn-int" onclick="openProjectToolLink('slack','${p.id}')" title="${esc(p.slackLink)}">💬 Project Slack</button>` : ''}
-                  ${p.repoLink ? `<button type="button" class="btn btn-int" onclick="openProjectToolLink('repo','${p.id}')" title="${esc(p.repoLink)}">📂 Box / SharePoint</button>` : ''}
+                  <button type="button" class="btn-int" onclick="openProjectToolLink('repo','${p.id}')" title="${esc(p.repoLink)}">📂 Box / SharePoint</button>
                 </div>
               ` : ''}
               <div style="margin-bottom:12px;">
@@ -3113,19 +3086,8 @@ function openProjectModal(projectId = null) {
       </div>
 
       <div style="border-top:1px dashed var(--border);margin:14px 0 12px;padding-top:12px;">
-        <div style="font-size:0.84rem;font-weight:700;margin-bottom:8px;">🔗 Project Jira & Slack Links (optional)</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Project Jira Board / Space URL or Key</label>
-            <input type="text" id="pJiraLink" value="${esc(p?.jiraLink || '')}" placeholder="e.g. https://.../jira/software/projects/ABC or ABC" />
-          </div>
-          <div class="form-group">
-            <label>Project Slack Channel URL or #channel</label>
-            <input type="text" id="pSlackLink" value="${esc(p?.slackLink || '')}" placeholder="e.g. https://.../archives/C012345 or #proj-channel" />
-          </div>
-        </div>
         <div class="form-group" style="margin-bottom:0;">
-          <label>Box Repository or SharePoint URL (optional)</label>
+          <label>📂 Box Repository or SharePoint URL (optional)</label>
           <input type="url" id="pRepoLink" value="${esc(p?.repoLink || '')}" placeholder="e.g. https://app.box.com/folder/... or https://company.sharepoint.com/..." />
         </div>
       </div>
@@ -3198,8 +3160,6 @@ function saveProjectForm(e, projectId) {
   const payload = {
     name: document.getElementById('pName').value.trim(),
     client: document.getElementById('pClient').value.trim(),
-    jiraLink: (document.getElementById('pJiraLink')?.value || '').trim(),
-    slackLink: (document.getElementById('pSlackLink')?.value || '').trim(),
     repoLink: (document.getElementById('pRepoLink')?.value || '').trim(),
     description: document.getElementById('pDesc').value.trim(),
     status: document.getElementById('pStatus').value,
@@ -3330,7 +3290,6 @@ function captureTaskFilterSnapshot() {
     search: f.search || '',
     projectId: f.projectId || '',
     stageId: f.stageId || '',
-    category: f.category || '',
     status: f.status !== undefined ? f.status : '__open__',
     priority: f.priority || '',
     due: f.due || '',
@@ -3379,7 +3338,6 @@ function openSaveFilterPresetModal(presetId = null) {
     summaryParts.push(`Project: ${pr ? pr.name : snap.projectId}`);
   }
   if (snap.stageId) summaryParts.push('Stage filtered');
-  if (snap.category) summaryParts.push(`Category: ${snap.category}`);
   if (snap.status && snap.status !== '__open__') summaryParts.push(`Status: ${snap.status}`);
   else if (snap.status === '__open__') summaryParts.push('Open statuses');
   if (snap.team) summaryParts.push(`Team: ${snap.team === '__unassigned__' ? 'No Team' : snap.team}`);
@@ -3470,7 +3428,6 @@ function countActiveExtraFilters() {
   if (f.stageId) cnt++;
   if (f.status !== '__open__' && f.status !== 'Blocked') cnt++;
   if (f.priority) cnt++;
-  if (f.category) cnt++;
   if (f.planned) cnt++;
   const namedAssignees = (Array.isArray(f.assignees) ? f.assignees : []).filter(x => x !== '__me__' && x !== '__delegated__');
   if (namedAssignees.length > 0) cnt++;
@@ -3568,7 +3525,6 @@ function getFilteredTasks() {
   const filtered = state.tasks.filter(t => {
     if (f.projectId && t.projectId !== f.projectId) return false;
     if (f.stageId && t.stageId !== f.stageId) return false;
-    if (f.category && t.category !== f.category) return false;
     if (f.status === '__open__' && t.status === 'Done') return false;
     if (f.status && f.status !== '__open__' && t.status !== f.status) return false;
     if (f.priority && t.priority !== f.priority) return false;
@@ -3803,9 +3759,6 @@ function renderActiveFilterPills() {
   if (f.priority) {
     pills.push({ label: `Priority: ${f.priority}`, clear: "state.ui.taskFilters.priority='';render()" });
   }
-  if (f.category) {
-    pills.push({ label: `Cat: ${f.category}`, clear: "state.ui.taskFilters.category='';render()" });
-  }
   if (f.planned) {
     pills.push({ label: f.planned === 'planned' ? '🗓️ Planned' : '📋 Non-planned', clear: "state.ui.taskFilters.planned='';render()" });
   }
@@ -3916,7 +3869,7 @@ function renderTasks(el) {
         </div>
 
         <div class="tasks-cmd-right">
-          <button type="button" class="btn btn-sm ${state.ui.showMoreFilters || extraFilterCount ? 'btn-primary' : ''}" onclick="state.ui.showMoreFilters=!state.ui.showMoreFilters;render()" title="Filter by team, stage, status, priority, category, or planning type">
+          <button type="button" class="btn btn-sm ${state.ui.showMoreFilters || extraFilterCount ? 'btn-primary' : ''}" onclick="state.ui.showMoreFilters=!state.ui.showMoreFilters;render()" title="Filter by team, stage, status, priority, planning type, or team members">
             🎛️ More Filters${extraFilterCount ? ` (${extraFilterCount})` : ''}
           </button>
           <div class="views-popover-wrap">
@@ -3971,13 +3924,6 @@ function renderTasks(el) {
             </select>
           </div>
           <div>
-            <label>Category</label>
-            <select onchange="state.ui.taskFilters.category=this.value;render()">
-              <option value="">All Categories</option>
-              ${getCategories().map(c => `<option ${f.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-            </select>
-          </div>
-          <div>
             <label>Planning Type</label>
             <select onchange="state.ui.taskFilters.planned=this.value;render()">
               <option value="" ${!f.planned ? 'selected' : ''}>All Types</option>
@@ -4010,7 +3956,7 @@ function refreshTaskResults() {
 }
 
 function clearTaskFilters() {
-  state.ui.taskFilters = { search: '', projectId: '', stageId: '', category: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: true };
+  state.ui.taskFilters = { search: '', projectId: '', stageId: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: true };
   state.ui.activeTaskPresetId = '';
   render();
 }
@@ -4061,7 +4007,6 @@ function renderTaskList(tasks) {
             <span class="task-title ${t.status === 'Done' ? 'done' : ''}">${esc(t.title)}</span>
             <span class="badge ${statusBadgeClass(t.status)}">${esc(t.status)}</span>
             <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
-            <span class="badge b-cat">${esc(t.category)}</span>
             <span class="badge ${plannedFlag ? 'b-progress' : 'b-todo'}" title="${plannedFlag ? 'Planned task' : 'Non-planned task'}">${plannedFlag ? '🗓️ Planned' : '📋 Non-planned'}</span>
             ${t.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(t.assignee)}">👤 ${esc(t.assignee)}</span>` : ''}
             ${tTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeTTeam}')" title="Click to show tasks & subtasks for team ${esc(tTeam)}">🏷️ ${esc(tTeam)}</span>` : ''}
@@ -4123,7 +4068,6 @@ function renderTaskList(tasks) {
                     </div>
                     <div class="subtask-tags-right">
                       <span class="badge ${statusBadgeClass(sub.status)}">${esc(sub.status)}</span>
-                      <span class="badge b-cat">${esc(sub.category || t.category)}</span>
                       ${sub.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(sub.assignee)}">👤 ${esc(sub.assignee)}</span>` : ''}
                       ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
                       ${sub.dueDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Due ${esc(sub.dueDate)}</span>` : ''}
@@ -4175,7 +4119,6 @@ function addQuickTodoSubtask(e, taskId) {
     learningProgress: 0
   };
   t.subtasks.push(createdSub);
-  if (typeof maybeAutoNotifySlack === 'function') maybeAutoNotifySlack(t, createdSub, 'created');
   saveState();
   render();
   showToast('Subtask added');
@@ -4223,7 +4166,6 @@ function renderTodoView(tasks) {
         </div>
         <div class="ms-todo-row-right">
           ${t.priority === 'High' ? `<span style="color:var(--danger);font-size:0.95rem;" title="High priority">★</span>` : ''}
-          <span class="badge b-cat" style="font-size:0.68rem;">${esc(t.category)}</span>
         </div>
       </div>
     `;
@@ -4262,7 +4204,6 @@ function renderTodoView(tasks) {
         <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">
           <span class="badge ${statusBadgeClass(t.status)}">${esc(t.status)}</span>
           <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
-          <span class="badge b-cat">${esc(t.category)}</span>
           <span class="badge ${plannedFlag ? 'b-progress' : 'b-todo'}">${plannedFlag ? '🗓️ Planned' : '📋 Non-planned'}</span>
           ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
           ${tTeam ? `<span class="badge b-cat">🏷️ ${esc(tTeam)}</span>` : ''}
@@ -4377,7 +4318,6 @@ function renderKanban(tasks) {
                   </div>
                   <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
                     <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
-                    <span class="badge b-cat">${esc(t.category)}</span>
                     ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
                   </div>
                   <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:8px;">
@@ -4423,7 +4363,6 @@ function toggleTaskDone(taskId) {
   t.status = wasDone ? 'To do' : 'Done';
   if (!wasDone && t.status === 'Done') {
     spawnNextRecurringTask(t);
-    maybeAutoNotifySlack(t, null, 'completed');
   }
   saveState();
   render();
@@ -4444,7 +4383,6 @@ function toggleSubtaskDone(taskId, subId) {
   if (!s) return;
   const wasDone = s.status === 'Done';
   s.status = wasDone ? 'To do' : 'Done';
-  if (!wasDone && s.status === 'Done') maybeAutoNotifySlack(t, s, 'completed');
   orderTaskSubtasks(t);
   saveState();
   render();
@@ -4456,7 +4394,6 @@ function toggleTaskOptionalFields(show) {
   if (!sec || !btn) return;
   sec.style.display = show ? 'block' : 'none';
   btn.textContent = show ? '🔒 Hide Extra Fields' : '🔓 Show Extra Fields';
-  if (show) updateTaskCategoryHint();
 }
 
 function openQuickAddTaskModal() {
@@ -4701,26 +4638,12 @@ function openTaskModal(taskId = null, opts = {}) {
 
         <div class="form-row">
           <div class="form-group">
-            <label>Category</label>
-            <select id="tCategory" onchange="updateTaskCategoryHint()">
-              ${getCategories().map(c => `<option ${(t?.category || 'Jira') === c ? 'selected' : ''}>${c}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
             <label>Billable Setting</label>
             <select id="tBillable">
               <option value="inherit" ${(t?.billableOverride || 'inherit') === 'inherit' ? 'selected' : ''}>Inherit from project</option>
               <option value="billable" ${t?.billableOverride === 'billable' ? 'selected' : ''}>Always Billable</option>
               <option value="nonbillable" ${t?.billableOverride === 'nonbillable' ? 'selected' : ''}>Always Non-billable</option>
             </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group" id="tExternalRefWrap">
-            <label id="tExternalRefLabel">Link or Ticket ID (optional)</label>
-            <input type="text" id="tExternalRef" value="${esc(t?.externalRef || '')}" placeholder="e.g. ABC-123 or Slack message URL" />
-            <div class="field-hint" id="tExternalRefHint">Used by the quick Open button on your task card.</div>
           </div>
           <div class="form-group">
             <label>Blocked By Another Task (optional)</label>
@@ -4732,12 +4655,6 @@ function openTaskModal(taskId = null, opts = {}) {
             </select>
             <div class="field-hint">Shows a warning icon while that task isn't Done.</div>
           </div>
-        </div>
-
-        <div class="form-group" id="tLearningWrap" style="display:none;">
-          <label>Learning Progress: <strong id="tLearningPctLbl">${Number(t?.learningProgress || 0)}%</strong></label>
-          <input type="range" id="tLearningProgress" min="0" max="100" step="5" value="${Number(t?.learningProgress || 0)}" oninput="document.getElementById('tLearningPctLbl').textContent=this.value+'%'" />
-          <div class="field-hint">Track how far along you are in this course, tutorial, or book.</div>
         </div>
 
         <div style="border-top:1px solid var(--border);margin:14px 0 12px;padding-top:12px;">
@@ -4773,7 +4690,6 @@ function openTaskModal(taskId = null, opts = {}) {
 
   populateStageDropdown(defaultProjId, t?.stageId || '');
   renderTaskModalSubtaskGrid();
-  updateTaskCategoryHint();
   initRichEditorTableSupport('tDesc');
 }
 
@@ -4785,54 +4701,6 @@ function populateStageDropdown(projectId, selectedStageId = '') {
   sel.innerHTML = `<option value="">None</option>` + stages.map(s =>
     `<option value="${s.id}" ${selectedStageId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`
   ).join('');
-}
-
-function updateCategoryFieldHints(cat, lblId, inpId, hintId, learnWrapId) {
-  const lbl = document.getElementById(lblId);
-  const inp = document.getElementById(inpId);
-  const hint = document.getElementById(hintId);
-  const learnWrap = document.getElementById(learnWrapId);
-  if (learnWrap) learnWrap.style.display = (cat === 'Learning') ? 'block' : 'none';
-  if (!lbl || !inp) return;
-  if (cat === 'Slack') {
-    lbl.textContent = 'Slack Message or Channel Link';
-    inp.placeholder = 'e.g. https://yourteam.slack.com/archives/...';
-    if (hint) hint.textContent = 'Enables "Open in Slack" and "Copy to Slack" buttons.';
-  } else if (cat === 'Jira') {
-    lbl.textContent = 'Jira Ticket Key or Full URL';
-    inp.placeholder = 'e.g. ABC-123';
-    if (hint) hint.textContent = 'Combines with your Base Jira URL in Settings for "Open in Jira".';
-  } else if (cat === 'Support') {
-    lbl.textContent = `Support Ticket Number or Link (${state.settings?.supportTool || 'Helpdesk'})`;
-    inp.placeholder = 'e.g. 1042 or full ticket URL';
-    if (hint) hint.textContent = 'Combines with your Helpdesk URL in Settings for "Open Ticket".';
-  } else if (cat === 'Learning') {
-    lbl.textContent = 'Course or Resource Link';
-    inp.placeholder = 'e.g. https://www.coursera.org/... or YouTube link';
-    if (hint) hint.textContent = 'Enables "Open Resource" button alongside your progress bar.';
-  } else if (cat === 'Administrative') {
-    lbl.textContent = 'Related Link (Google Doc, Sheet, Form, etc.)';
-    inp.placeholder = 'e.g. https://docs.google.com/...';
-    if (hint) hint.textContent = 'Enables a one-click "Open Link" button.';
-  } else if (cat === 'Dependency') {
-    lbl.textContent = 'External Blocker Link (optional: Jira, email, etc.)';
-    inp.placeholder = 'e.g. https://... or ticket key';
-    if (hint) hint.textContent = 'Pick the blocking task on the right, and optionally add an external link here.';
-  } else {
-    lbl.textContent = 'Reference Link / ID (optional)';
-    inp.placeholder = 'Optional link or reference';
-    if (hint) hint.textContent = '';
-  }
-}
-
-function updateTaskCategoryHint() {
-  const cat = document.getElementById('tCategory')?.value;
-  updateCategoryFieldHints(cat, 'tExternalRefLabel', 'tExternalRef', 'tExternalRefHint', 'tLearningWrap');
-}
-
-function updateSubtaskCategoryHint() {
-  const cat = document.getElementById('stCategory')?.value;
-  updateCategoryFieldHints(cat, 'stExternalRefLabel', 'stExternalRef', 'stExternalRefHint', 'stLearningWrap');
 }
 
 function saveTaskForm(e, taskId) {
@@ -4862,9 +4730,7 @@ function saveTaskForm(e, taskId) {
       status: document.getElementById('tStatus')?.value || 'To do',
       priority: document.getElementById('tPriority')?.value || 'Medium',
       dueDate: document.getElementById('tDue')?.value || '',
-      category: document.getElementById('tCategory')?.value || 'Jira',
       billableOverride: document.getElementById('tBillable')?.value || 'inherit',
-      externalRef: (document.getElementById('tExternalRef')?.value || '').trim(),
       blockedByTaskId: document.getElementById('tBlockedBy')?.value || '',
       plannedDate: document.getElementById('tPlannedDate')?.value || '',
       plannedStartTime: document.getElementById('tPlannedTime')?.value || '',
@@ -4947,13 +4813,11 @@ function saveTaskForm(e, taskId) {
       Object.assign(existingTask, payload, { subtasks: builtSubtasks });
       if (!wasDone && existingTask.status === 'Done') {
         if (typeof spawnNextRecurringTask === 'function') spawnNextRecurringTask(existingTask);
-        if (typeof maybeAutoNotifySlack === 'function') maybeAutoNotifySlack(existingTask, null, 'completed');
       }
       showToast('Task updated');
     } else {
       const created = { id: uid('task'), subtasks: builtSubtasks, ...payload };
       state.tasks.unshift(created);
-      if (typeof maybeAutoNotifySlack === 'function') maybeAutoNotifySlack(created, null, 'created');
       showToast('Task created');
     }
 
@@ -4984,7 +4848,6 @@ function toggleSubtaskOptionalFields(show) {
   if (!sec || !btn) return;
   sec.style.display = show ? 'block' : 'none';
   btn.textContent = show ? '🔒 Hide Extra Fields' : '🔓 Show Extra Fields';
-  if (show) updateSubtaskCategoryHint();
 }
 
 function openSubtaskModal(taskId, subId = null) {
@@ -5053,22 +4916,8 @@ function openSubtaskModal(taskId, subId = null) {
             </select>
           </div>
           <div class="form-group">
-            <label>Category</label>
-            <select id="stCategory" onchange="updateSubtaskCategoryHint()">
-              ${getCategories().map(c => `<option ${(s?.category || t.category) === c ? 'selected' : ''}>${c}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
             <label>Due Date</label>
             <input type="date" id="stDue" value="${esc(s?.dueDate || '')}" />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label id="stExternalRefLabel">Link or Ticket ID (optional)</label>
-            <input type="text" id="stExternalRef" value="${esc(s?.externalRef || '')}" placeholder="e.g. ABC-123 or URL" />
-            <div class="field-hint" id="stExternalRefHint"></div>
           </div>
           <div class="form-group">
             <label>Blocked By Task (optional)</label>
@@ -5079,11 +4928,6 @@ function openSubtaskModal(taskId, subId = null) {
               `).join('')}
             </select>
           </div>
-        </div>
-
-        <div class="form-group" id="stLearningWrap" style="display:none;">
-          <label>Learning Progress: <strong id="stLearningPctLbl">${Number(s?.learningProgress || 0)}%</strong></label>
-          <input type="range" id="stLearningProgress" min="0" max="100" step="5" value="${Number(s?.learningProgress || 0)}" oninput="document.getElementById('stLearningPctLbl').textContent=this.value+'%'" />
         </div>
 
         <div class="form-row-3">
@@ -5114,7 +4958,6 @@ function openSubtaskModal(taskId, subId = null) {
       </div>
     </form>
   `);
-  updateSubtaskCategoryHint();
   initRichEditorTableSupport('stDesc');
 }
 
@@ -5128,25 +4971,20 @@ function saveSubtaskForm(e, taskId, subId) {
     assignee: (document.getElementById('stAssignee')?.value || '').trim(),
     description: sanitizeNoteHtml(document.getElementById('stDesc')?.innerHTML || ''),
     status: document.getElementById('stStatus').value,
-    category: document.getElementById('stCategory').value,
     dueDate: document.getElementById('stDue').value,
     plannedDate: document.getElementById('stPlannedDate').value,
     plannedStartTime: document.getElementById('stPlannedTime').value,
     estimatedHours: Number(document.getElementById('stEstHours').value || 0),
-    externalRef: (document.getElementById('stExternalRef')?.value || '').trim(),
-    blockedByTaskId: document.getElementById('stBlockedBy')?.value || '',
-    learningProgress: Number(document.getElementById('stLearningProgress')?.value || 0)
+    blockedByTaskId: document.getElementById('stBlockedBy')?.value || ''
   };
   if (subId) {
     const existing = t.subtasks.find(x => x.id === subId);
     const wasDone = existing.status === 'Done';
     Object.assign(existing, payload);
-    if (!wasDone && existing.status === 'Done') maybeAutoNotifySlack(t, existing, 'completed');
     showToast('Subtask updated');
   } else {
     const createdSub = { id: uid('sub'), ...payload };
     t.subtasks.push(createdSub);
-    maybeAutoNotifySlack(t, createdSub, 'created');
     showToast('Subtask added');
   }
   if (payload.assignee) ensureAssigneeRecord(payload.assignee);
@@ -6384,7 +6222,6 @@ function renderTimeTracker(el) {
               <tr>
                 <th>Date</th>
                 <th>Project / Task</th>
-                <th>Category</th>
                 <th>Billable</th>
                 <th>Duration</th>
                 <th>Note</th>
@@ -6403,7 +6240,6 @@ function renderTimeTracker(el) {
                       <strong>${esc(task ? task.title : 'Deleted Task')}</strong>${sub ? ` › ${esc(sub.title)}` : ''}
                       <div style="font-size:0.76rem;color:var(--text-muted)">${esc(proj ? proj.name : 'Unknown Project')}</div>
                     </td>
-                    <td><span class="badge b-cat">${esc(entry.category)}</span></td>
                     <td><span class="badge ${entry.billable ? 'b-billable' : 'b-nonbillable'}">${entry.billable ? 'Billable' : 'Non-billable'}</span></td>
                     <td><strong>${formatDuration(entry.durationSeconds)}</strong> <span style="font-size:0.75rem;color:var(--text-muted)">(${formatHoursNum(entry.durationSeconds)}h)</span></td>
                     <td>${esc(entry.note || '')}</td>
@@ -6514,17 +6350,10 @@ function saveTimeEntryForm(ev, entryId) {
     alert('Please enter a duration greater than 0.');
     return;
   }
-  let category = task ? task.category : 'Administrative';
-  if (task && subtaskId) {
-    const sub = (task.subtasks || []).find(s => s.id === subtaskId);
-    if (sub && sub.category) category = sub.category;
-  }
-
   const payload = {
     projectId: task ? task.projectId : '',
     taskId,
     subtaskId,
-    category,
     billable: document.getElementById('teBillable').value === 'true',
     date: getEffectiveTimeEntryDate(document.getElementById('teDate').value),
     durationSeconds: totalSec,
@@ -6651,13 +6480,11 @@ function saveQuickLogActual(e, taskId, subtaskId) {
     return;
   }
 
-  const category = (sub && sub.category) ? sub.category : t.category;
   state.timeEntries.unshift({
     id: uid('time'),
     projectId: t.projectId,
     taskId: t.id,
     subtaskId: subtaskId || null,
-    category,
     billable: document.getElementById('qlBillable').value === 'true',
     date: getEffectiveTimeEntryDate(document.getElementById('qlDate').value || todayStr()),
     durationSeconds: totalSec,
@@ -6740,14 +6567,6 @@ function renderReports(el) {
     totalEarned += earned;
     return { ...r, earned };
   }).sort((a, b) => b.sec - a.sec);
-
-  // By Category
-  const byCategory = {};
-  getCategories().forEach(c => byCategory[c] = 0);
-  entries.forEach(e => {
-    byCategory[e.category] = (byCategory[e.category] || 0) + (e.durationSeconds || 0);
-  });
-  const catRows = Object.entries(byCategory).map(([name, sec]) => ({ name, sec })).sort((a, b) => b.sec - a.sec);
 
   // By Day
   const byDay = {};
@@ -6873,38 +6692,20 @@ function renderReports(el) {
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:18px;">
-      <div class="card">
-        <div class="card-header"><div class="card-title">Hours & Earnings by Project</div></div>
-        ${projRows.length === 0 ? `<div class="empty-state">No project hours in this range.</div>` : projRows.map(r => {
-          const pct = totalSec > 0 ? Math.round((r.sec / totalSec) * 100) : 0;
-          return `
-            <div class="bar-row">
-              <div class="bar-row-top">
-                <strong>${esc(r.name)}</strong>
-                <span>${(r.sec/3600).toFixed(2)}h ${r.earned > 0 ? `• <strong style="color:var(--success)">$${r.earned.toFixed(2)}</strong>` : ''}</span>
-              </div>
-              <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-header"><div class="card-title">Hours & Earnings by Project</div></div>
+      ${projRows.length === 0 ? `<div class="empty-state">No project hours in this range.</div>` : projRows.map(r => {
+        const pct = totalSec > 0 ? Math.round((r.sec / totalSec) * 100) : 0;
+        return `
+          <div class="bar-row">
+            <div class="bar-row-top">
+              <strong>${esc(r.name)}</strong>
+              <span>${(r.sec/3600).toFixed(2)}h ${r.earned > 0 ? `• <strong style="color:var(--success)">$${r.earned.toFixed(2)}</strong>` : ''}</span>
             </div>
-          `;
-        }).join('')}
-      </div>
-
-      <div class="card">
-        <div class="card-header"><div class="card-title">Hours by Category</div></div>
-        ${catRows.filter(c => c.sec > 0).length === 0 ? `<div class="empty-state">No category hours in this range.</div>` : catRows.map(c => {
-          const pct = totalSec > 0 ? Math.round((c.sec / totalSec) * 100) : 0;
-          return `
-            <div class="bar-row">
-              <div class="bar-row-top">
-                <span>${esc(c.name)}</span>
-                <span><strong>${(c.sec/3600).toFixed(2)}h</strong> (${pct}%)</span>
-              </div>
-              <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--info)"></div></div>
-            </div>
-          `;
-        }).join('')}
-      </div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      }).join('')}
     </div>
 
     <div class="card" style="margin-bottom:18px;">
@@ -7002,7 +6803,7 @@ function renderReports(el) {
 function exportReportCSV() {
   const bounds = getReportDateBounds();
   const entries = state.timeEntries.filter(e => e.date >= bounds.start && e.date <= bounds.end);
-  const rows = [['Date', 'Project', 'Task', 'Subtask', 'Category', 'Billable', 'Hours', 'Hourly Rate', 'Estimated Earned', 'Note']];
+  const rows = [['Date', 'Project', 'Task', 'Subtask', 'Billable', 'Hours', 'Hourly Rate', 'Estimated Earned', 'Note']];
   entries.forEach(e => {
     const p = getProject(e.projectId);
     const t = getTask(e.taskId);
@@ -7015,7 +6816,6 @@ function exportReportCSV() {
       p ? p.name : '',
       t ? t.title : '',
       sub ? sub.title : '',
-      e.category,
       e.billable ? 'Yes' : 'No',
       hrs.toFixed(2),
       rate.toFixed(2),
@@ -8563,7 +8363,6 @@ function handleQuickAddTask(e) {
     subtasks: []
   };
   state.tasks.unshift(quickTask);
-  maybeAutoNotifySlack(quickTask, null, 'created');
   saveState();
   render();
   showToast('Quick task added for today');
@@ -8735,61 +8534,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 
-// ===================== 9. PHASE 4: LEVEL 1 INTEGRATIONS & SETTINGS =====================
+// ===================== 9. LINKS, DEPENDENCIES & SETTINGS =====================
 function isValidHttpUrl(str) {
   return /^https?:\/\//i.test((str || '').trim());
-}
-
-function buildJiraUrl(ref) {
-  ref = (ref || '').trim();
-  if (!ref) return '';
-  if (isValidHttpUrl(ref)) return ref;
-  const base = (state.settings?.jiraBaseUrl || '').trim().replace(/\/+$/, '');
-  if (!base) return '';
-  return `${base}/browse/${encodeURIComponent(ref)}`;
-}
-
-function buildSupportUrl(ref) {
-  ref = (ref || '').trim();
-  if (!ref) return '';
-  if (isValidHttpUrl(ref)) return ref;
-  const base = (state.settings?.supportBaseUrl || '').trim().replace(/\/+$/, '');
-  if (!base) return '';
-  const tool = state.settings?.supportTool || 'Other';
-  if (tool === 'Zendesk') return `${base}/agent/tickets/${encodeURIComponent(ref)}`;
-  if (tool === 'Freshdesk') return `${base}/a/tickets/${encodeURIComponent(ref)}`;
-  if (tool === 'Jira Service Management') return `${base}/browse/${encodeURIComponent(ref)}`;
-  return `${base}/${encodeURIComponent(ref)}`;
 }
 
 function openProjectToolLink(tool, projectId) {
   const p = getProject(projectId);
   if (!p) return;
-  if (tool === 'jira') {
-    const val = (p.jiraLink || '').trim();
-    if (!val) return;
-    if (isValidHttpUrl(val)) {
-      window.open(val, '_blank', 'noopener');
-    } else {
-      const base = (state.settings?.jiraBaseUrl || '').trim().replace(/\/+$/, '');
-      if (base) window.open(`${base}/jira/software/projects/${encodeURIComponent(val)}`, '_blank', 'noopener');
-      else showToast(`Project Jira key/ref: ${val} (add Base Jira URL in Settings to open as web link)`);
-    }
-    return;
-  }
-  if (tool === 'slack') {
-    const val = (p.slackLink || '').trim();
-    if (!val) return;
-    if (isValidHttpUrl(val)) {
-      window.open(val, '_blank', 'noopener');
-    } else {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(val).catch(() => {});
-      }
-      showToast(`Project Slack channel: ${val}`);
-    }
-    return;
-  }
   if (tool === 'repo') {
     const val = (p.repoLink || '').trim();
     if (!val) return;
@@ -8799,84 +8551,6 @@ function openProjectToolLink(tool, projectId) {
       showToast('Please save a full Box or SharePoint URL (starting with https://) to open it.');
     }
   }
-}
-
-function openExternalIntegrationLink(kind, ref) {
-  ref = (ref || '').trim();
-  if (kind === 'Slack') {
-    if (isValidHttpUrl(ref)) {
-      window.open(ref, '_blank', 'noopener');
-    } else {
-      showToast('Paste a full Slack message or channel URL (starting with https://) to open it directly.');
-    }
-    return;
-  }
-  if (kind === 'Jira') {
-    const url = buildJiraUrl(ref);
-    if (url) {
-      window.open(url, '_blank', 'noopener');
-    } else {
-      if (confirm('Your Base Jira URL is not set yet. Open Settings to add it now?')) {
-        switchView('settings');
-      }
-    }
-    return;
-  }
-  if (kind === 'Support') {
-    const url = buildSupportUrl(ref);
-    if (url) {
-      window.open(url, '_blank', 'noopener');
-    } else {
-      if (confirm('Your Helpdesk Base URL is not set yet (or paste a full ticket URL). Open Settings now?')) {
-        switchView('settings');
-      }
-    }
-    return;
-  }
-  if (isValidHttpUrl(ref)) {
-    window.open(ref, '_blank', 'noopener');
-  } else {
-    showToast('Please save a full web link (starting with https://) to open it.');
-  }
-}
-
-function copyToSlack(taskId, subtaskId = null) {
-  const t = getTask(taskId);
-  if (!t) return;
-  const sub = subtaskId ? (t.subtasks || []).find(s => s.id === subtaskId) : null;
-  const item = sub || t;
-  const proj = getProject(t.projectId);
-  const title = sub ? `${t.title} → ${sub.title}` : t.title;
-  const lines = [
-    `*${title}*`,
-    `• Status: ${item.status || 'To do'}`,
-    `• Due: ${item.dueDate || 'No due date'}`,
-    proj ? `• Project: ${proj.name}` : ''
-  ].filter(Boolean);
-  if (item.externalRef) lines.push(`• Ref: ${item.externalRef}`);
-  const text = lines.join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Copied Slack message to clipboard!');
-    }).catch(() => fallbackCopyText(text));
-  } else {
-    fallbackCopyText(text);
-  }
-}
-
-function fallbackCopyText(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
-    showToast('Copied Slack message to clipboard!');
-  } catch (e) {
-    alert('Copy this message:\n\n' + text);
-  }
-  document.body.removeChild(ta);
 }
 
 function renderSubtaskDependencyBadge(sub) {
@@ -8901,88 +8575,15 @@ function getBlockedDependentsCount(taskId) {
 }
 
 function renderIntegrationActions(task, subtask = null, inline = false) {
-  const item = subtask || task;
-  const cat = item.category || task.category;
-  const ref = (item.externalRef || '').trim();
-  const safeRef = esc(ref).replace(/'/g, "\\'");
-  const subArg = subtask ? `'${subtask.id}'` : 'null';
   const chips = [];
 
-  if (cat === 'Slack') {
-    if (ref) {
-      chips.push(`<button type="button" class="btn-int" onclick="openExternalIntegrationLink('Slack','${safeRef}')" title="Open saved Slack message or channel">💬 Open in Slack</button>`);
-    }
-    chips.push(`<button type="button" class="btn-int" onclick="copyToSlack('${task.id}', ${subArg})" title="Copy formatted title, due date, and status to paste into Slack">📋 Copy to Slack</button>`);
-    chips.push(`<button type="button" class="btn-int" onclick="syncSlackItem('${task.id}', ${subArg}, 'manual')" title="Send an update to your Slack channel via Incoming Webhook">🔄 Sync now</button>`);
-    if (item.slackLastSynced) {
-      const tStr = new Date(item.slackLastSynced).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      chips.push(`<span class="sync-meta" title="Last synced to Slack: ${esc(new Date(item.slackLastSynced).toLocaleString())}">✓ Synced ${tStr}</span>`);
-    }
-    if (item.slackLastError) {
-      chips.push(`<span class="sync-err" title="${esc(item.slackLastError)}">⚠️ ${esc(item.slackLastError.length > 42 ? item.slackLastError.slice(0, 42) + '…' : item.slackLastError)}</span>`);
-    }
-  } else if (cat === 'Jira') {
-    if (ref) {
-      chips.push(`<button type="button" class="btn-int" onclick="openExternalIntegrationLink('Jira','${safeRef}')" title="Open ${esc(ref)} in Jira">🎫 Open in Jira (${esc(ref.length > 18 ? ref.slice(0,18)+'…' : ref)})</button>`);
-      chips.push(`<button type="button" class="btn-int" onclick="pullJiraIssueDetails('${task.id}', ${subArg})" title="Fetch latest title, status, and assignee from Jira">📥 Pull Jira</button>`);
-      chips.push(`<button type="button" class="btn-int" onclick="openJiraWorklogModal('${task.id}', ${subArg})" title="Send tracked hours to Jira as a worklog">⏱️ Log to Jira</button>`);
-    } else {
-      chips.push(`<button type="button" class="btn-int" onclick="createJiraIssueFromItem('${task.id}', ${subArg})" title="Create a new ticket in Jira for this item">➕ Create in Jira</button>`);
-    }
-    if (item.jiraStatus || item.jiraAssignee) {
-      const jInfo = [item.jiraStatus ? `Jira: ${item.jiraStatus}` : '', item.jiraAssignee ? `👤 ${item.jiraAssignee}` : ''].filter(Boolean).join(' • ');
-      chips.push(`<span class="jira-meta-pill" title="Latest Jira ticket details">${esc(jInfo)}</span>`);
-    }
-    if (item.jiraLastSynced) {
-      const jTime = new Date(item.jiraLastSynced).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      chips.push(`<span class="sync-meta" title="Last synced with Jira: ${esc(new Date(item.jiraLastSynced).toLocaleString())}">✓ Synced ${jTime}</span>`);
-    }
-    if (item.jiraLastError) {
-      chips.push(`<span class="sync-err" title="${esc(item.jiraLastError)}">⚠️ ${esc(item.jiraLastError.length > 42 ? item.jiraLastError.slice(0, 42) + '…' : item.jiraLastError)}</span>`);
-    }
-  } else if (cat === 'Support') {
-    if (ref) {
-      const tool = state.settings?.supportTool || 'Support';
-      chips.push(`<button type="button" class="btn-int" onclick="openExternalIntegrationLink('Support','${safeRef}')" title="Open ticket in ${esc(tool)}">🎧 Open Ticket</button>`);
-    }
-  } else if (cat === 'Learning') {
-    const pct = Number(item.learningProgress || 0);
-    chips.push(`<span class="learning-pill" title="Learning progress">📚 ${pct}% <span class="learning-mini-track"><span class="learning-mini-fill" style="width:${pct}%"></span></span></span>`);
-    if (ref) {
-      chips.push(`<button type="button" class="btn-int" onclick="openExternalIntegrationLink('Learning','${safeRef}')" title="Open course or learning resource">🎓 Open Resource</button>`);
-    }
-  } else if (cat === 'Administrative') {
-    if (ref) {
-      chips.push(`<button type="button" class="btn-int" onclick="openExternalIntegrationLink('Administrative','${safeRef}')" title="Open related document, sheet, or form">🔗 Open Link</button>`);
-    }
-  } else if (cat === 'Dependency') {
-    if (ref) {
-      chips.push(`<button type="button" class="btn-int" onclick="openExternalIntegrationLink('Dependency','${safeRef}')" title="Open external dependency link">🔗 External Link</button>`);
-    }
-  }
-
-  // On parent tasks, also show if this task is currently blocking other tasks/subtasks
   if (!subtask) {
     const blockingCount = getBlockedDependentsCount(task.id);
     if (blockingCount > 0 && task.status !== 'Done') {
       chips.push(`<span class="badge b-blocked" title="Other tasks or subtasks are waiting on this one">🚧 Blocking ${blockingCount} item${blockingCount > 1 ? 's' : ''}</span>`);
     }
-  }
-
-  const proj = getProject(task.projectId);
-  if (!subtask && proj) {
-    if (cat === 'Slack' && proj.slackLink && !ref) {
-      const safePSlack = esc(proj.slackLink).replace(/'/g, "\\'");
-      if (isValidHttpUrl(proj.slackLink)) {
-        chips.unshift(`<button type="button" class="btn-int" onclick="window.open('${safePSlack}','_blank','noopener')" title="Open project Slack channel">💬 Project Slack</button>`);
-      } else {
-        chips.unshift(`<span class="badge b-todo" title="Project Slack channel">💬 ${esc(proj.slackLink)}</span>`);
-      }
-    }
-    if (cat === 'Jira' && proj.jiraLink && !ref) {
-      chips.unshift(`<button type="button" class="btn-int" onclick="openProjectToolLink('jira','${proj.id}')" title="Open project Jira board">🎫 Project Jira</button>`);
-    }
-    if (proj.repoLink && isValidHttpUrl(proj.repoLink)) {
+    const proj = getProject(task.projectId);
+    if (proj && proj.repoLink && isValidHttpUrl(proj.repoLink)) {
       chips.push(`<button type="button" class="btn-int" onclick="openProjectToolLink('repo','${proj.id}')" title="${esc(proj.repoLink)}">📂 Box / SharePoint</button>`);
     }
   }
@@ -8992,395 +8593,11 @@ function renderIntegrationActions(task, subtask = null, inline = false) {
   return `<div class="integration-bar">${chips.join('')}</div>`;
 }
 
-// ===================== LEVEL 2: SLACK INCOMING WEBHOOK ENGINE =====================
-function buildSlackMessageText(task, subtask, reason) {
-  const item = subtask || task;
-  const proj = getProject(task.projectId);
-  const title = subtask ? `${task.title} → ${subtask.title}` : task.title;
-  const headerMap = {
-    created: '🆕 *New Slack Task Created*',
-    completed: '✅ *Slack Task Completed*',
-    overdue: '⏰ *Slack Task Overdue*',
-    manual: '🔄 *Slack Task Update*'
-  };
-  const lines = [
-    headerMap[reason] || headerMap.manual,
-    `*${title}*`,
-    `• Status: ${item.status || 'To do'}`,
-    `• Due: ${item.dueDate || 'No due date'}`,
-    proj ? `• Project: ${proj.name}` : ''
-  ].filter(Boolean);
-  if (item.externalRef) lines.push(`• Link/Ref: ${item.externalRef}`);
-  return lines.join('\n');
-}
-
-async function sendSlackWebhookPayload(text) {
-  const webhookUrl = (state.settings?.slackWebhookUrl || '').trim();
-  const proxyUrl = (state.settings?.proxyUrl || '').trim();
-
-  if (!webhookUrl) {
-    throw new Error('No Slack Webhook URL saved in Settings.');
-  }
-  if (!/^https:\/\/hooks\.slack\.com\/services\//i.test(webhookUrl)) {
-    throw new Error('Slack Webhook URL should start with https://hooks.slack.com/services/');
-  }
-
-  // Path A: Recommended Google Apps Script Proxy (bypasses browser CORS & returns real confirmation)
-  if (proxyUrl) {
-    const res = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'slack_webhook',
-        webhookUrl,
-        payload: { text }
-      })
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || (data && data.ok === false)) {
-      throw new Error((data && data.error) || `Proxy returned HTTP ${res.status}`);
-    }
-    return { mode: 'proxy', message: 'Confirmed by Slack via proxy' };
-  }
-
-  // Path B: Direct browser POST using no-cors (Slack accepts text/plain JSON, but browser hides the reply)
-  await fetch(webhookUrl, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ text })
-  });
-  return { mode: 'direct', message: 'Sent to Slack (direct mode — check your channel to confirm)' };
-}
-
-async function syncSlackItem(taskId, subtaskId = null, reason = 'manual') {
-  const t = getTask(taskId);
-  if (!t) return;
-  const sub = subtaskId ? (t.subtasks || []).find(s => s.id === subtaskId) : null;
-  const item = sub || t;
-
-  if (!(state.settings?.slackWebhookUrl || '').trim()) {
-    if (reason === 'manual') {
-      if (confirm('Slack Incoming Webhook URL is not configured yet. Open Settings to paste it now?')) {
-        switchView('settings');
-      }
-    }
-    return;
-  }
-
-  const text = buildSlackMessageText(t, sub, reason);
-  try {
-    const result = await sendSlackWebhookPayload(text);
-    item.slackLastSynced = new Date().toISOString();
-    item.slackLastError = '';
-    saveState();
-    render();
-    if (reason === 'manual') {
-      showToast(result.mode === 'proxy' ? '✅ Synced to Slack!' : '📤 Sent to Slack (check channel)');
-    }
-  } catch (err) {
-    item.slackLastError = err.message || 'Could not reach Slack';
-    saveState();
-    render();
-    if (reason === 'manual') {
-      showToast(`⚠️ Slack sync failed: ${item.slackLastError}`);
-    }
-  }
-}
-
-function maybeAutoNotifySlack(task, subtask, reason) {
-  const s = state.settings || {};
-  if (!(s.slackWebhookUrl || '').trim()) return;
-  const item = subtask || task;
-  const cat = item.category || task.category;
-  if (cat !== 'Slack') return;
-  if (reason === 'created' && !s.slackNotifyCreated) return;
-  if (reason === 'completed' && !s.slackNotifyCompleted) return;
-  if (reason === 'overdue' && !s.slackNotifyOverdue) return;
-  syncSlackItem(task.id, subtask ? subtask.id : null, reason);
-}
-
-function checkOverdueSlackNotifications() {
-  const s = state.settings || {};
-  if (!(s.slackWebhookUrl || '').trim() || !s.slackNotifyOverdue) return;
-  const today = todayStr();
-
-  state.tasks.forEach(t => {
-    if (t.category === 'Slack' && t.status !== 'Done' && t.dueDate && t.dueDate < today && t.slackOverdueNotifiedDate !== today) {
-      t.slackOverdueNotifiedDate = today;
-      maybeAutoNotifySlack(t, null, 'overdue');
-    }
-    (t.subtasks || []).forEach(sub => {
-      const cat = sub.category || t.category;
-      if (cat === 'Slack' && sub.status !== 'Done' && sub.dueDate && sub.dueDate < today && sub.slackOverdueNotifiedDate !== today) {
-        sub.slackOverdueNotifiedDate = today;
-        maybeAutoNotifySlack(t, sub, 'overdue');
-      }
-    });
-  });
-}
-
-async function testSlackWebhookFromSettings() {
-  saveSettingsForm(null, true);
-  const statusEl = document.getElementById('slackTestStatus');
-  if (statusEl) {
-    statusEl.style.color = 'var(--text-muted)';
-    statusEl.textContent = 'Sending test message to Slack…';
-  }
-  try {
-    const res = await sendSlackWebhookPayload('👋 *Hello from Cadence!* Your Slack Incoming Webhook is connected and working.');
-    if (statusEl) {
-      statusEl.style.color = 'var(--success)';
-      statusEl.textContent = `✅ ${res.message}`;
-    }
-    showToast('Test message sent to Slack');
-  } catch (err) {
-    if (statusEl) {
-      statusEl.style.color = 'var(--danger)';
-      statusEl.textContent = `⚠️ Failed: ${err.message}`;
-    }
-  }
-}
-
-// ===================== LEVEL 2: JIRA REST API ENGINE (VIA PROXY) =====================
-function extractJiraIssueKey(ref) {
-  ref = (ref || '').trim();
-  if (!ref) return '';
-  const m = ref.match(/([A-Z][A-Z0-9_]+-\d+)/i);
-  return m ? m[1].toUpperCase() : '';
-}
-
-function getJiraAuthConfig() {
-  const s = state.settings || {};
-  const proxyUrl = (s.proxyUrl || '').trim();
-  const baseUrl = (s.jiraBaseUrl || '').trim().replace(/\/+$/, '');
-  const email = (s.jiraEmail || '').trim();
-  const apiToken = (s.jiraApiToken || '').trim();
-  return { proxyUrl, baseUrl, email, apiToken };
-}
-
-function ensureJiraReady(requireProjectKey = false) {
-  const cfg = getJiraAuthConfig();
-  if (!cfg.proxyUrl || !cfg.baseUrl || !cfg.email || !cfg.apiToken) {
-    if (confirm('Jira API requires Base Jira URL, Jira Email, Jira API Token, and Google Apps Script Proxy URL in ⚙️ Settings. Open Settings now?')) {
-      switchView('settings');
-    }
-    return null;
-  }
-  if (requireProjectKey && !(state.settings?.jiraDefaultProjectKey || '').trim()) {
-    if (confirm('Please set a Default Jira Project Key (e.g. PROJ) in ⚙️ Settings before creating Jira tickets. Open Settings now?')) {
-      switchView('settings');
-    }
-    return null;
-  }
-  return cfg;
-}
-
-async function callJiraProxy(action, extraBody) {
-  const cfg = getJiraAuthConfig();
-  const res = await fetch(cfg.proxyUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({
-      action,
-      baseUrl: cfg.baseUrl,
-      email: cfg.email,
-      apiToken: cfg.apiToken
-    }, extraBody || {}))
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data || data.ok === false) {
-    throw new Error((data && data.error) || `Jira proxy error (HTTP ${res.status})`);
-  }
-  return data;
-}
-
-async function pullJiraIssueDetails(taskId, subtaskId = null) {
-  const t = getTask(taskId);
-  if (!t) return;
-  const sub = subtaskId ? (t.subtasks || []).find(s => s.id === subtaskId) : null;
-  const item = sub || t;
-  const issueKey = extractJiraIssueKey(item.externalRef);
-  if (!issueKey) {
-    showToast('Enter a Jira ticket key like ABC-123 in the Link/Ticket field first.');
-    return;
-  }
-  const cfg = ensureJiraReady(false);
-  if (!cfg) return;
-
-  try {
-    const data = await callJiraProxy('jira_get_issue', { issueKey });
-    const issue = data.issue || {};
-    if (issue.summary) item.title = issue.summary;
-    if (issue.status) item.jiraStatus = issue.status;
-    if (issue.assignee) item.jiraAssignee = issue.assignee;
-    item.jiraLastSynced = new Date().toISOString();
-    item.jiraLastError = '';
-    saveState();
-    render();
-    showToast(`📥 Pulled ${issueKey} (${issue.status || 'Synced'})`);
-  } catch (err) {
-    item.jiraLastError = err.message || 'Jira fetch failed';
-    saveState();
-    render();
-    showToast(`⚠️ Jira pull failed: ${item.jiraLastError}`);
-  }
-}
-
-async function createJiraIssueFromItem(taskId, subtaskId = null) {
-  const t = getTask(taskId);
-  if (!t) return;
-  const sub = subtaskId ? (t.subtasks || []).find(s => s.id === subtaskId) : null;
-  const item = sub || t;
-  const cfg = ensureJiraReady(true);
-  if (!cfg) return;
-
-  const projectKey = (state.settings?.jiraDefaultProjectKey || '').trim().toUpperCase();
-  const issueType = (state.settings?.jiraIssueType || 'Task').trim() || 'Task';
-  const summary = sub ? `${t.title}: ${sub.title}` : item.title;
-  const description = item.description || t.description || `Created from Cadence (${getProject(t.projectId)?.name || 'Task'})`;
-
-  try {
-    const data = await callJiraProxy('jira_create_issue', {
-      projectKey,
-      issueType,
-      summary,
-      description
-    });
-    const createdKey = data.key || '';
-    if (!createdKey) throw new Error('Jira did not return an issue key.');
-    item.externalRef = createdKey;
-    item.jiraStatus = 'To Do';
-    item.jiraLastSynced = new Date().toISOString();
-    item.jiraLastError = '';
-    saveState();
-    render();
-    showToast(`🎫 Created Jira ticket ${createdKey}`);
-  } catch (err) {
-    item.jiraLastError = err.message || 'Jira create failed';
-    saveState();
-    render();
-    showToast(`⚠️ Jira create failed: ${item.jiraLastError}`);
-  }
-}
-
-function openJiraWorklogModal(taskId, subtaskId = null) {
-  const t = getTask(taskId);
-  if (!t) return;
-  const sub = subtaskId ? (t.subtasks || []).find(s => s.id === subtaskId) : null;
-  const item = sub || t;
-  const issueKey = extractJiraIssueKey(item.externalRef);
-  if (!issueKey) {
-    showToast('Enter a Jira ticket key like ABC-123 before logging work.');
-    return;
-  }
-
-  const trackedSec = subtaskId
-    ? getActualSecondsForSubtask(taskId, subtaskId)
-    : getActualSecondsForTask(taskId, false);
-  const defaultMins = trackedSec > 0
-    ? Math.max(15, Math.round(trackedSec / 60))
-    : Math.max(15, Math.round((Number(item.estimatedHours || 0.5)) * 60));
-
-  openModal(`
-    <div class="modal-header">
-      <h3>⏱️ Log Work to Jira (${esc(issueKey)})</h3>
-      <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
-    </div>
-    <p class="field-hint" style="margin-bottom:12px;">
-      Send a time worklog directly to <strong>${esc(issueKey)}</strong> in Jira.
-      ${trackedSec > 0 ? `Tracked time for this item: <strong>${formatDuration(trackedSec)}</strong>.` : ''}
-    </p>
-    <form onsubmit="submitJiraWorklogForm(event, '${taskId}', ${subtaskId ? `'${subtaskId}'` : 'null'}, '${esc(issueKey)}')">
-      <div class="form-row">
-        <div class="form-group">
-          <label>Time Spent (Minutes) *</label>
-          <input type="number" id="jwMins" min="1" required value="${defaultMins}" />
-          <div class="field-hint">Example: 30 = 30m, 60 = 1h, 90 = 1h 30m</div>
-        </div>
-        <div class="form-group">
-          <label>Started Date *</label>
-          <input type="date" id="jwDate" required value="${todayStr()}" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Worklog Comment (optional)</label>
-        <input type="text" id="jwComment" value="${esc(sub ? sub.title : t.title)}" placeholder="What did you complete?" />
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Send Worklog to Jira</button>
-      </div>
-    </form>
-  `);
-}
-
-async function submitJiraWorklogForm(e, taskId, subtaskId, issueKey) {
-  e.preventDefault();
-  const t = getTask(taskId);
-  if (!t) return;
-  const sub = subtaskId ? (t.subtasks || []).find(s => s.id === subtaskId) : null;
-  const item = sub || t;
-  const cfg = ensureJiraReady(false);
-  if (!cfg) return;
-
-  const mins = Math.max(1, Number(document.getElementById('jwMins').value || 0));
-  const dateStr = document.getElementById('jwDate').value || todayStr();
-  const comment = (document.getElementById('jwComment')?.value || '').trim();
-
-  try {
-    await callJiraProxy('jira_add_worklog', {
-      issueKey,
-      timeSpentSeconds: mins * 60,
-      started: `${dateStr}T09:00:00.000+0000`,
-      comment
-    });
-    item.jiraLastSynced = new Date().toISOString();
-    item.jiraLastError = '';
-    saveState();
-    closeModal();
-    render();
-    showToast(`⏱️ Logged ${mins}m worklog to ${issueKey}`);
-  } catch (err) {
-    item.jiraLastError = err.message || 'Worklog failed';
-    saveState();
-    render();
-    alert(`Could not log work to Jira:\n${item.jiraLastError}`);
-  }
-}
-
-async function testJiraConnectionFromSettings() {
-  saveSettingsForm(null, true);
-  const statusEl = document.getElementById('jiraTestStatus');
-  if (statusEl) {
-    statusEl.style.color = 'var(--text-muted)';
-    statusEl.textContent = 'Testing Jira connection…';
-  }
-  const cfg = ensureJiraReady(false);
-  if (!cfg) {
-    if (statusEl) statusEl.textContent = '';
-    return;
-  }
-  try {
-    const data = await callJiraProxy('jira_test', {});
-    if (statusEl) {
-      statusEl.style.color = 'var(--success)';
-      statusEl.textContent = `✅ Connected to Jira as ${data.displayName || cfg.email}`;
-    }
-    showToast('Jira connection successful');
-  } catch (err) {
-    if (statusEl) {
-      statusEl.style.color = 'var(--danger)';
-      statusEl.textContent = `⚠️ Failed: ${err.message}`;
-    }
-  }
-}
-
 // Settings View
 function renderSettings(el) {
   const s = state.settings || {};
   el.innerHTML = `
-    <p class="helper-banner">Configure your Google Apps Script Proxy URL, Google Calendar / Outlook public .ics URL, and integrations. Values are stored only in this browser—never inside the HTML file.</p>
+    <p class="helper-banner">Configure your Google Apps Script Proxy URL and Google Calendar / Outlook public .ics URL. Values are stored only in this browser—never inside the HTML file.</p>
 
     <form onsubmit="saveSettingsForm(event)">
       <div class="card" style="max-width:780px;margin-bottom:18px;border:2px solid var(--primary);">
@@ -9411,117 +8628,7 @@ function renderSettings(el) {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <button type="button" class="btn btn-sm" onclick="saveSettingsForm(null, true);switchView('calendar');setTimeout(()=>importCalendarFromUrl(),120);">🔄 Save & Sync Calendar Now</button>
           </div>
-          <button type="submit" class="btn btn-primary">Save All Settings</button>
-        </div>
-      </div>
-
-      <div class="card" style="max-width:780px;margin-bottom:18px;">
-        <div class="card-header">
-          <div class="card-title">🔗 Level 1 Integration Settings (No API Keys Needed)</div>
-        </div>
-        <div class="form-group">
-          <label>Base Jira URL</label>
-          <input type="url" id="setJiraUrl" value="${esc(s.jiraBaseUrl || '')}" placeholder="e.g. https://yourcompany.atlassian.net" />
-          <div class="field-hint">When a Jira task or subtask has a ticket key like <strong>ABC-123</strong>, Cadence builds <code>https://yourcompany.atlassian.net/browse/ABC-123</code> automatically.</div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Helpdesk / Support Tool</label>
-            <select id="setSupportTool">
-              ${['Zendesk', 'Freshdesk', 'Jira Service Management', 'Other'].map(tool =>
-                `<option ${(s.supportTool || 'Zendesk') === tool ? 'selected' : ''}>${tool}</option>`
-              ).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Helpdesk Base URL (optional)</label>
-            <input type="url" id="setSupportUrl" value="${esc(s.supportBaseUrl || '')}" placeholder="e.g. https://yourcompany.zendesk.com" />
-            <div class="field-hint">Used to open ticket numbers automatically. Full ticket URLs always work even without this.</div>
-          </div>
-        </div>
-
-        <div style="border-top:1px dashed var(--border);margin-top:14px;padding-top:14px;">
-          <div style="font-size:0.88rem;font-weight:700;margin-bottom:8px;">🎫 Level 2: Jira Two-Way Sync & Worklogs (Requires Proxy URL)</div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Jira Account Email</label>
-              <input type="text" id="setJiraEmail" value="${esc(s.jiraEmail || '')}" placeholder="you@company.com" />
-            </div>
-            <div class="form-group">
-              <label>Jira API Token</label>
-              <div style="display:flex;gap:8px;">
-                <input type="password" id="setJiraToken" value="${esc(s.jiraApiToken || '')}" placeholder="Atlassian API token" />
-                <button type="button" class="btn btn-sm" onclick="const el=document.getElementById('setJiraToken');el.type=el.type==='password'?'text':'password';this.textContent=el.type==='password'?'Show':'Hide'">Show</button>
-              </div>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Default Jira Project Key (for creating tickets)</label>
-              <input type="text" id="setJiraProjKey" value="${esc(s.jiraDefaultProjectKey || '')}" placeholder="e.g. PROJ" />
-            </div>
-            <div class="form-group">
-              <label>Default Jira Issue Type</label>
-              <input type="text" id="setJiraIssueType" value="${esc(s.jiraIssueType || 'Task')}" placeholder="e.g. Task or Bug" />
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px;">
-            <button type="button" class="btn btn-sm" onclick="testJiraConnectionFromSettings()">🔌 Test Jira Connection</button>
-            <span id="jiraTestStatus" style="font-size:0.8rem;font-weight:600;"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="max-width:780px;margin-bottom:18px;">
-        <div class="card-header">
-          <div class="card-title">💬 Level 2: Slack Incoming Webhook (One-Way Notifications)</div>
-        </div>
-        <div class="form-group">
-          <label>Slack Incoming Webhook URL</label>
-          <div style="display:flex;gap:8px;">
-            <input type="password" id="setSlackWebhook" value="${esc(s.slackWebhookUrl || '')}" placeholder="https://hooks.slack.com/services/T000/B000/XXXX" />
-            <button type="button" class="btn btn-sm" onclick="const el=document.getElementById('setSlackWebhook');el.type=el.type==='password'?'text':'password';this.textContent=el.type==='password'?'Show':'Hide'">Show</button>
-          </div>
-          <div class="field-hint">Sends messages to your chosen Slack channel when Slack-category tasks or subtasks are created, completed, overdue, or manually synced.</div>
-        </div>
-
-        <div class="form-group">
-          <label>Auto-notify Slack when a Slack task or subtask is:</label>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;">
-            <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
-              <input type="checkbox" id="setSlackCreated" ${s.slackNotifyCreated !== false ? 'checked' : ''} /> Created
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
-              <input type="checkbox" id="setSlackCompleted" ${s.slackNotifyCompleted !== false ? 'checked' : ''} /> Completed (Done)
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
-              <input type="checkbox" id="setSlackOverdue" ${s.slackNotifyOverdue !== false ? 'checked' : ''} /> Overdue
-            </label>
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:12px;">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <button type="button" class="btn btn-sm" onclick="testSlackWebhookFromSettings()">🧪 Send Test Message</button>
-            <span id="slackTestStatus" style="font-size:0.8rem;font-weight:600;"></span>
-          </div>
-          <button type="submit" class="btn btn-primary">Save All Settings</button>
-        </div>
-      </div>
-
-      <div class="card" style="max-width:780px;margin-bottom:18px;">
-        <div class="card-header">
-          <div class="card-title">🏷️ Categories (Configurable)</div>
-          <button type="button" class="btn btn-xs" onclick="document.getElementById('setCategories').value=DEFAULT_CATEGORIES.join(', ')">Reset Defaults</button>
-        </div>
-        <div class="form-group">
-          <label>Task & Subtask Categories (comma-separated)</label>
-          <input type="text" id="setCategories" value="${esc(getCategories().join(', '))}" placeholder="Slack, Jira, Support, Learning, Administrative, Dependency" />
-          <div class="field-hint">Customize categories used across Today, Tasks, Time Tracker, and Reports. Keep <strong>Jira</strong> and <strong>Slack</strong> in the list if you use their integrations.</div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;">
-          <button type="submit" class="btn btn-primary">Save All Settings</button>
+          <button type="submit" class="btn btn-primary">Save Settings</button>
         </div>
       </div>
     </form>
@@ -9531,9 +8638,9 @@ function renderSettings(el) {
         <div class="card-title">🔒 Security & Privacy Note</div>
       </div>
       <p style="font-size:0.86rem;color:var(--text-muted);line-height:1.6;">
-        Your Proxy URL, Calendar URL, Webhook URL, and API tokens are saved <strong>only inside this browser's local storage (IndexedDB)</strong>—never inside the <code>work-manager.html</code> file itself.
-        If you host <code>work-manager.html</code> publicly on GitHub Pages, visitors cannot see your URLs or tokens.
-        <strong>Caution:</strong> Avoid saving private URLs or tokens on a shared/public computer, and remember that your exported <code>.json</code> backup file will contain your saved settings—keep backup files private.
+        Your Proxy URL and Calendar URL are saved <strong>only inside this browser's local storage (IndexedDB)</strong>—never inside the <code>work-manager.html</code> file itself.
+        If you host <code>work-manager.html</code> publicly on GitHub Pages, visitors cannot see your URLs.
+        <strong>Caution:</strong> Avoid saving private URLs on a shared/public computer, and remember that your exported <code>.json</code> backup file will contain your saved settings—keep backup files private.
       </p>
     </div>
   `;
@@ -9543,25 +8650,8 @@ function saveSettingsForm(e, silent = false) {
   if (e) e.preventDefault();
   state.settings = {
     ...(state.settings || {}),
-    jiraBaseUrl: (document.getElementById('setJiraUrl')?.value || '').trim().replace(/\/+$/, ''),
-    supportTool: document.getElementById('setSupportTool')?.value || 'Zendesk',
-    supportBaseUrl: (document.getElementById('setSupportUrl')?.value || '').trim().replace(/\/+$/, ''),
-    slackWebhookUrl: (document.getElementById('setSlackWebhook')?.value || '').trim(),
-    slackNotifyCreated: Boolean(document.getElementById('setSlackCreated')?.checked),
-    slackNotifyCompleted: Boolean(document.getElementById('setSlackCompleted')?.checked),
-    slackNotifyOverdue: Boolean(document.getElementById('setSlackOverdue')?.checked),
     proxyUrl: (document.getElementById('setProxyUrl')?.value || '').trim(),
-    calendarIcsUrl: (document.getElementById('setCalendarIcsUrl')?.value || '').trim(),
-    jiraEmail: (document.getElementById('setJiraEmail')?.value || '').trim(),
-    jiraApiToken: (document.getElementById('setJiraToken')?.value || '').trim(),
-    jiraDefaultProjectKey: (document.getElementById('setJiraProjKey')?.value || '').trim().toUpperCase(),
-    jiraIssueType: (document.getElementById('setJiraIssueType')?.value || 'Task').trim() || 'Task',
-    categories: (function() {
-      const rawCats = (document.getElementById('setCategories')?.value || '').trim();
-      if (!rawCats) return null;
-      const parsed = rawCats.split(',').map(x => x.trim()).filter(Boolean);
-      return parsed.length > 0 ? Array.from(new Set(parsed)) : null;
-    })()
+    calendarIcsUrl: (document.getElementById('setCalendarIcsUrl')?.value || '').trim()
   };
   saveState();
   if (!silent) {
@@ -9572,7 +8662,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.25';
+const CADENCE_VERSION = 'v1.26';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
@@ -9594,7 +8684,6 @@ function syncVersionLabels() {
   updateReminderButtonUI();
   render();
   setTimeout(checkDueReminders, 2000);
-  setTimeout(checkOverdueSlackNotifications, 3000);
 })();
 </script>
 </body>
