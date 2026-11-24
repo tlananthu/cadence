@@ -959,11 +959,24 @@
 
   
   /* Calendar Styles */
+  .cal-view-shell {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 108px);
+    min-height: 460px;
+    overflow: hidden;
+  }
+  .cal-sticky-top {
+    flex-shrink: 0;
+  }
   .cal-layout {
     display: grid;
     grid-template-columns: 250px 1fr;
     gap: 16px;
-    align-items: start;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
   .cal-tray {
     background: var(--surface);
@@ -971,8 +984,19 @@
     border-radius: var(--radius);
     padding: 14px;
     box-shadow: var(--shadow);
-    max-height: 76vh;
+    height: 100%;
     overflow-y: auto;
+  }
+  .cal-main-pane {
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+    border-radius: var(--radius);
+  }
+  .cal-main-pane .cal-time-grid-wrap {
+    overflow: visible;
   }
   .cal-tray-item {
     background: var(--surface-2);
@@ -1094,8 +1118,10 @@
   .cal-allday-slot.drag-over { background: var(--primary-soft); outline: 2px dashed var(--primary); outline-offset: -2px; }
 
   @media (max-width: 900px) {
-    .cal-layout { grid-template-columns: 1fr; }
-    .cal-tray { max-height: 240px; }
+    .cal-view-shell { height: auto; overflow: visible; }
+    .cal-layout { grid-template-columns: 1fr; overflow: visible; }
+    .cal-tray { max-height: 240px; height: auto; }
+    .cal-main-pane { max-height: 70vh; }
   }
 
   
@@ -2072,7 +2098,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.31</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.32</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2109,7 +2135,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.31 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.32 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -5661,7 +5687,9 @@ function renderNotes(el) {
   const activeTag = state.ui.noteHashtag || '';
 
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+    <div class="cal-view-shell">
+    <div class="cal-sticky-top">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
       <p class="helper-banner" style="margin:0;">Google Keep-style notes with instant <strong>#hashtag</strong> filtering. Click any hashtag chip to filter.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn" onclick="openImportNotesModal()" title="Import external JSON notes without replacing existing data">⬆️ Import JSON</button>
@@ -7324,6 +7352,7 @@ function renderCalendar(el) {
       <span><span class="cal-pill pill-time" style="pointer-events:none">⏱ Time Entry</span></span>
       <span><span class="cal-pill pill-ics" style="pointer-events:none">📆 Imported (.ics)</span></span>
     </div>
+    </div>
 
     <div class="cal-layout">
       <div class="cal-tray">
@@ -7346,9 +7375,10 @@ function renderCalendar(el) {
         `).join('')}
       </div>
 
-      <div>
+      <div class="cal-main-pane" id="calMainPane">
         ${mode === 'month' ? renderCalendarMonth(cur) : (mode === 'week' ? renderCalendarWeek(cur) : renderCalendarDay(cur))}
       </div>
+    </div>
     </div>
   `;
   if (mode === 'day') {
@@ -7821,9 +7851,17 @@ function renderCalendarDay(cur) {
 
 function scrollCalendarToNowLine() {
   const line = document.getElementById('calNowLine');
+  const pane = document.getElementById('calMainPane');
   if (!line) return;
   requestAnimationFrame(() => {
-    line.scrollIntoView({ behavior: 'auto', block: 'center' });
+    if (pane) {
+      const paneRect = pane.getBoundingClientRect();
+      const lineRect = line.getBoundingClientRect();
+      const offsetWithinPane = (lineRect.top - paneRect.top) + pane.scrollTop;
+      pane.scrollTop = Math.max(0, offsetWithinPane - (pane.clientHeight / 2));
+    } else {
+      line.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }
   });
 }
 
@@ -9279,7 +9317,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.31';
+const CADENCE_VERSION = 'v1.32';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
