@@ -2090,7 +2090,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.33</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.34</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2127,7 +2127,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.33 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.34 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2232,7 +2232,7 @@ let state = {
     view: 'today',
     calendarMode: 'day', // month | week | day
     calendarDate: '',
-    calendarDayZoomMins: 30, // 15 | 30 | 60 | 120
+    calendarDayZoomMins: 60, // 15 | 30 | 60 | 120
     calendarDragTarget: 'planned', // planned | due
     taskViewMode: 'list', // list | todo | kanban
     selectedTodoTaskId: '',
@@ -7695,8 +7695,8 @@ const CAL_DAY_ZOOM_CONFIG = {
 };
 
 function getCalendarDayZoomMins() {
-  const z = Number(state.ui.calendarDayZoomMins || 30);
-  return CAL_DAY_ZOOM_CONFIG[z] ? z : 30;
+  const z = Number(state.ui.calendarDayZoomMins || 60);
+  return CAL_DAY_ZOOM_CONFIG[z] ? z : 60;
 }
 
 function setCalendarDayZoom(mins) {
@@ -9360,7 +9360,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.33';
+const CADENCE_VERSION = 'v1.34';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
