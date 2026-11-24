@@ -1934,6 +1934,26 @@
     padding: 6px 9px;
     font-size: 0.82rem;
   }
+  .completed-divider-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 14px 0 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .completed-divider-bar:hover {
+    border-color: var(--primary);
+    color: var(--text);
+  }
   @media (max-width: 960px) {
     .ms-todo-layout {
       grid-template-columns: 1fr;
@@ -1963,7 +1983,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.26</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.27</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2000,7 +2020,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.26 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.27 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2117,7 +2137,8 @@ let state = {
     activeTaskPresetId: '',
     showMoreFilters: false,
     showViewsMenu: false,
-    showAssigneeStrip: true
+    showAssigneeStrip: true,
+    hideCompleted: true
   }
 };
 
@@ -3849,6 +3870,17 @@ function renderTriageStrip() {
   `;
 }
 
+function toggleHideCompleted() {
+  state.ui.hideCompleted = !state.ui.hideCompleted;
+  const f = state.ui.taskFilters;
+  if (state.ui.hideCompleted) {
+    if (f.status === '' || f.status === 'Done') f.status = '__open__';
+  } else {
+    if (f.status === '__open__') f.status = '';
+  }
+  render();
+}
+
 function renderTasks(el) {
   const f = state.ui.taskFilters;
   const selectedProj = f.projectId ? getProject(f.projectId) : null;
@@ -3869,6 +3901,9 @@ function renderTasks(el) {
         </div>
 
         <div class="tasks-cmd-right">
+          <button type="button" class="btn btn-sm ${!state.ui.hideCompleted ? 'btn-primary' : ''}" onclick="toggleHideCompleted()" title="${state.ui.hideCompleted ? 'Show completed tasks and subtasks' : 'Hide completed tasks and subtasks'}">
+            ${state.ui.hideCompleted ? '👁️ Show Completed' : '🙈 Hide Completed'}
+          </button>
           <button type="button" class="btn btn-sm ${state.ui.showMoreFilters || extraFilterCount ? 'btn-primary' : ''}" onclick="state.ui.showMoreFilters=!state.ui.showMoreFilters;render()" title="Filter by team, stage, status, priority, planning type, or team members">
             🎛️ More Filters${extraFilterCount ? ` (${extraFilterCount})` : ''}
           </button>
@@ -3910,7 +3945,7 @@ function renderTasks(el) {
           ` : ''}
           <div>
             <label>Status</label>
-            <select onchange="state.ui.taskFilters.status=this.value;render()">
+            <select onchange="state.ui.taskFilters.status=this.value;if(this.value==='__open__')state.ui.hideCompleted=true;else if(this.value===''||this.value==='Done')state.ui.hideCompleted=false;render()">
               <option value="__open__" ${f.status === '__open__' ? 'selected' : ''}>All Open</option>
               <option value="" ${f.status === '' ? 'selected' : ''}>All (incl. Done)</option>
               ${STATUSES.map(s => `<option value="${s}" ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}
@@ -3958,6 +3993,7 @@ function refreshTaskResults() {
 function clearTaskFilters() {
   state.ui.taskFilters = { search: '', projectId: '', stageId: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: true };
   state.ui.activeTaskPresetId = '';
+  state.ui.hideCompleted = true;
   render();
 }
 
@@ -3983,7 +4019,7 @@ function renderTaskList(tasks) {
     return ok;
   };
 
-  return tasks.map(t => {
+  const renderTaskCard = (t) => {
     const proj = getProject(t.projectId);
     const stage = getStage(proj, t.stageId);
     const blocker = isTaskBlockedByUnfinished(t);
@@ -3991,7 +4027,9 @@ function renderTaskList(tasks) {
     const plannedFlag = isTaskPlanned(t);
     const allSubs = t.subtasks || [];
     const matchingSubs = hasAssigneeOrTeamFilter ? allSubs.filter(doesSubMatchFilter) : [];
-    const subs = (hasAssigneeOrTeamFilter && matchingSubs.length > 0) ? matchingSubs : allSubs;
+    const baseSubs = (hasAssigneeOrTeamFilter && matchingSubs.length > 0) ? matchingSubs : allSubs;
+    const hiddenDoneSubsCount = state.ui.hideCompleted ? baseSubs.filter(s => s.status === 'Done').length : 0;
+    const subs = state.ui.hideCompleted ? baseSubs.filter(s => s.status !== 'Done') : baseSubs;
     const doneSubs = allSubs.filter(s => s.status === 'Done').length;
     const pct = allSubs.length ? Math.round((doneSubs / allSubs.length) * 100) : 0;
     const running = isTimerRunningFor(t.id, null);
@@ -4023,10 +4061,10 @@ function renderTaskList(tasks) {
           </div>
           ${renderIntegrationActions(t, null)}
 
-          ${subs.length > 0 ? `
+          ${allSubs.length > 0 ? `
             <div class="progress-wrap">
               <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-              <span class="progress-text">${doneSubs} of ${subs.length} subtasks done (${pct}%)</span>
+              <span class="progress-text">${doneSubs} of ${allSubs.length} subtasks done (${pct}%)${hiddenDoneSubsCount > 0 ? ` • <a href="#" onclick="event.preventDefault();toggleHideCompleted()" style="color:var(--primary);text-decoration:none;">Show ${hiddenDoneSubsCount} completed</a>` : ''}</span>
             </div>
           ` : ''}
         </div>
@@ -4082,7 +4120,21 @@ function renderTaskList(tasks) {
         ` : ''}
       </div>
     `;
-  }).join('');
+  };
+
+  const openTasks = tasks.filter(t => t.status !== 'Done');
+  const doneTasks = tasks.filter(t => t.status === 'Done');
+  let out = openTasks.map(renderTaskCard).join('');
+  if (doneTasks.length > 0) {
+    out += `
+      <div class="completed-divider-bar" onclick="toggleHideCompleted()" title="Click to hide completed tasks & subtasks">
+        <span>✓ Completed (${doneTasks.length})</span>
+        <span style="font-weight:600;color:var(--primary);">Hide completed</span>
+      </div>
+      ${doneTasks.map(renderTaskCard).join('')}
+    `;
+  }
+  return out;
 }
 
 function selectTodoTask(taskId) {
@@ -4137,7 +4189,7 @@ function renderTodoView(tasks) {
     state.ui.selectedTodoTaskId = '';
   }
 
-  const rowsHtml = tasks.map(t => {
+  const renderTodoRow = (t) => {
     const isSel = selectedTask && selectedTask.id === t.id;
     const isDone = t.status === 'Done';
     const proj = getProject(t.projectId);
@@ -4169,7 +4221,16 @@ function renderTodoView(tasks) {
         </div>
       </div>
     `;
-  }).join('');
+  };
+  const openTodoTasks = tasks.filter(t => t.status !== 'Done');
+  const doneTodoTasks = tasks.filter(t => t.status === 'Done');
+  const rowsHtml = openTodoTasks.map(renderTodoRow).join('') + (doneTodoTasks.length > 0 ? `
+    <div class="completed-divider-bar" onclick="toggleHideCompleted()" title="Click to hide completed tasks & subtasks">
+      <span>✓ Completed (${doneTodoTasks.length})</span>
+      <span style="font-weight:600;color:var(--primary);">Hide completed</span>
+    </div>
+    ${doneTodoTasks.map(renderTodoRow).join('')}
+  ` : '');
 
   let detailHtml = '';
   if (selectedTask) {
@@ -4227,7 +4288,10 @@ function renderTodoView(tasks) {
         <div class="ms-todo-section">
           <div class="ms-todo-section-title">
             <span>☑️ Subtasks (${doneSubs}/${subs.length})</span>
-            <button type="button" class="btn btn-xs btn-ghost" onclick="openSubtaskModal('${t.id}')">+ Detailed</button>
+            <div style="display:flex;gap:4px;align-items:center;">
+              ${doneSubs > 0 ? `<button type="button" class="btn btn-xs btn-ghost" onclick="toggleHideCompleted()" title="${state.ui.hideCompleted ? 'Show completed subtasks' : 'Hide completed subtasks'}">${state.ui.hideCompleted ? `Show ${doneSubs} done` : 'Hide done'}</button>` : ''}
+              <button type="button" class="btn btn-xs btn-ghost" onclick="openSubtaskModal('${t.id}')">+ Detailed</button>
+            </div>
           </div>
           ${subs.length > 0 ? `
             <div class="progress-wrap" style="margin-top:0;margin-bottom:8px;">
@@ -4235,7 +4299,7 @@ function renderTodoView(tasks) {
               <span class="progress-text">${pct}%</span>
             </div>
             <div>
-              ${subs.map(sub => {
+              ${(state.ui.hideCompleted ? subs.filter(sub => sub.status !== 'Done') : subs).map(sub => {
                 const sDone = sub.status === 'Done';
                 const subRunning = isTimerRunningFor(t.id, sub.id);
                 return `
@@ -8662,7 +8726,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.26';
+const CADENCE_VERSION = 'v1.27';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
