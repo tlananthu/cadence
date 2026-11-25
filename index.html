@@ -694,6 +694,34 @@
     background: var(--primary-soft);
   }
 
+  /* Time Tracker Groups */
+  .time-group-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .time-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+  }
+  .time-group-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
   /* Tables */
   .table-wrap { overflow-x: auto; }
   table {
@@ -2205,7 +2233,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.39</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.40</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2242,7 +2270,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.39 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.40 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2355,9 +2383,14 @@ let state = {
     showArchivedProjects: false,
     taskFilters: { search: '', projectId: '', stageId: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: false },
     noteSearch: '',
-    reportRange: 'week', // week | month | custom | all
+    reportRange: 'week', // today | week | month | custom | all
     reportStart: '',
     reportEnd: '',
+    timeRange: 'today', // today | week | month | custom | all
+    timeStart: '',
+    timeEnd: '',
+    timeProjectId: '',
+    timeGroupBy: 'none', // none | project | date | week | month
     activeTaskPresetId: '',
     showMoreFilters: false,
     showViewsMenu: false,
@@ -6674,56 +6707,249 @@ function executeImportNotesForm(e) {
 
 
 // ===================== 5. TIME TRACKER VIEW =====================
+function getDateRangeBounds(mode, customStart = '', customEnd = '') {
+  const now = new Date();
+  if (mode === 'today') {
+    const t = todayStr();
+    return { start: t, end: t };
+  }
+  if (mode === 'week') {
+    const day = now.getDay(); // 0=Sun
+    const diffToMon = (day === 0 ? -6 : 1 - day);
+    const start = new Date(now);
+    start.setDate(now.getDate() + diffToMon);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return {
+      start: formatLocalDate(start),
+      end: formatLocalDate(end)
+    };
+  }
+  if (mode === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      start: formatLocalDate(start),
+      end: formatLocalDate(end)
+    };
+  }
+  if (mode === 'custom') {
+    return {
+      start: customStart || addDaysStr(-14),
+      end: customEnd || todayStr()
+    };
+  }
+  return { start: '0000-01-01', end: '9999-12-31' };
+}
+
+function getWeekBucketForDate(dateStr) {
+  const parts = String(dateStr || '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return { key: 'unknown', label: 'Unknown Week' };
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  const day = dt.getDay();
+  const diffToMon = (day === 0 ? -6 : 1 - day);
+  const mon = new Date(dt);
+  mon.setDate(dt.getDate() + diffToMon);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const monStr = formatLocalDate(mon);
+  const sunStr = formatLocalDate(sun);
+  return { key: monStr, label: `Week of ${monStr} – ${sunStr}` };
+}
+
+function getMonthBucketForDate(dateStr) {
+  const parts = String(dateStr || '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return { key: 'unknown', label: 'Unknown Month' };
+  const dt = new Date(parts[0], parts[1] - 1, 1);
+  const key = `${parts[0]}-${String(parts[1]).padStart(2, '0')}`;
+  const label = dt.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  return { key, label };
+}
+
+function formatDateWithWeekday(dateStr) {
+  const parts = String(dateStr || '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return dateStr || 'Unknown Date';
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  const wd = dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  return `${dateStr} (${wd})`;
+}
+
+function renderTimeEntriesTable(entries) {
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Project / Task</th>
+            <th>Billable</th>
+            <th>Duration</th>
+            <th>Note</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${entries.map(entry => {
+            const proj = getProject(entry.projectId);
+            const task = getTask(entry.taskId);
+            const sub = (task && entry.subtaskId) ? (task.subtasks || []).find(s => s.id === entry.subtaskId) : null;
+            return `
+              <tr>
+                <td style="white-space:nowrap;">${esc(entry.date)}</td>
+                <td>
+                  <strong>${esc(task ? task.title : 'Deleted Task')}</strong>${sub ? ` › ${esc(sub.title)}` : ''}
+                  <div style="font-size:0.76rem;color:var(--text-muted)">${esc(proj ? proj.name : 'Unknown Project')}</div>
+                </td>
+                <td><span class="badge ${entry.billable ? 'b-billable' : 'b-nonbillable'}">${entry.billable ? 'Billable' : 'Non-billable'}</span></td>
+                <td style="white-space:nowrap;"><strong>${formatDuration(entry.durationSeconds)}</strong> <span style="font-size:0.75rem;color:var(--text-muted)">(${formatHoursNum(entry.durationSeconds)}h)</span></td>
+                <td>${esc(entry.note || '')}</td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-xs" onclick="openTimeEntryModal('${entry.id}')">Edit</button>
+                  <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteTimeEntry('${entry.id}')">Delete</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderTimeTracker(el) {
+  const mode = state.ui.timeRange || 'today';
+  const bounds = getDateRangeBounds(mode, state.ui.timeStart, state.ui.timeEnd);
+  const projFilter = state.ui.timeProjectId || '';
+  const groupBy = state.ui.timeGroupBy || 'none';
+
+  const entries = state.timeEntries
+    .map(e => ({ ...e, effectiveDate: getEffectiveTimeEntryDate(e.date) }))
+    .filter(e => {
+      if (e.effectiveDate < bounds.start || e.effectiveDate > bounds.end) return false;
+      if (projFilter && e.projectId !== projFilter) return false;
+      return true;
+    })
+    .sort((a, b) => (b.effectiveDate || '').localeCompare(a.effectiveDate || ''));
+
+  const totalSec = entries.reduce((s, e) => s + (e.durationSeconds || 0), 0);
+  const billSec = entries.filter(e => e.billable).reduce((s, e) => s + (e.durationSeconds || 0), 0);
+  const nonBillSec = totalSec - billSec;
+
+  const rangeHint = mode === 'all'
+    ? 'All recorded dates'
+    : (mode === 'today' ? bounds.start : `${bounds.start} to ${bounds.end}`);
+
+  let bodyHtml = '';
+  if (entries.length === 0) {
+    bodyHtml = `<div class="empty-state">No time entries match your filters. Try switching the date range or project filter, or log a new entry above.</div>`;
+  } else if (groupBy === 'none') {
+    bodyHtml = renderTimeEntriesTable(entries);
+  } else {
+    const groupsMap = new Map();
+    entries.forEach(entry => {
+      let key = '';
+      let label = '';
+      if (groupBy === 'project') {
+        const p = getProject(entry.projectId);
+        key = entry.projectId || '__unknown__';
+        label = `📁 ${p ? p.name : 'Unknown Project'}`;
+      } else if (groupBy === 'date') {
+        key = entry.effectiveDate || 'unknown';
+        label = `📅 ${formatDateWithWeekday(key)}`;
+      } else if (groupBy === 'week') {
+        const wb = getWeekBucketForDate(entry.effectiveDate);
+        key = wb.key;
+        label = `🗓️ ${wb.label}`;
+      } else if (groupBy === 'month') {
+        const mb = getMonthBucketForDate(entry.effectiveDate);
+        key = mb.key;
+        label = `📆 ${mb.label}`;
+      }
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, { key, label, items: [], totalSec: 0, billSec: 0 });
+      }
+      const grp = groupsMap.get(key);
+      grp.items.push(entry);
+      grp.totalSec += (entry.durationSeconds || 0);
+      if (entry.billable) grp.billSec += (entry.durationSeconds || 0);
+    });
+
+    const groups = Array.from(groupsMap.values());
+    if (groupBy === 'project') {
+      groups.sort((a, b) => b.totalSec - a.totalSec || a.label.localeCompare(b.label));
+    } else {
+      groups.sort((a, b) => b.key.localeCompare(a.key));
+    }
+
+    bodyHtml = groups.map(g => {
+      const gNonBill = g.totalSec - g.billSec;
+      return `
+        <div class="time-group-card">
+          <div class="time-group-header">
+            <strong>${esc(g.label)}</strong>
+            <div class="time-group-meta">
+              <span class="badge b-todo">${g.items.length} ${g.items.length === 1 ? 'entry' : 'entries'}</span>
+              <span class="badge b-billable">Billable: ${(g.billSec / 3600).toFixed(2)}h</span>
+              ${gNonBill > 0 ? `<span class="badge b-nonbillable">Non-billable: ${(gNonBill / 3600).toFixed(2)}h</span>` : ''}
+              <strong style="color:var(--text);">Total: ${formatDuration(g.totalSec)} (${(g.totalSec / 3600).toFixed(2)}h)</strong>
+            </div>
+          </div>
+          ${renderTimeEntriesTable(g.items)}
+        </div>
+      `;
+    }).join('');
+  }
+
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
       <p class="helper-banner" style="margin:0;">Start a live timer on any task or subtask, or log time manually when you forget to start the timer.</p>
       <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
     </div>
 
+    <div class="card" style="margin-bottom:16px;padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="tab-switch">
+            <button class="tab-btn ${mode === 'today' ? 'active' : ''}" onclick="state.ui.timeRange='today';render()">Today</button>
+            <button class="tab-btn ${mode === 'week' ? 'active' : ''}" onclick="state.ui.timeRange='week';render()">This Week</button>
+            <button class="tab-btn ${mode === 'month' ? 'active' : ''}" onclick="state.ui.timeRange='month';render()">This Month</button>
+            <button class="tab-btn ${mode === 'all' ? 'active' : ''}" onclick="state.ui.timeRange='all';render()">All Time</button>
+            <button class="tab-btn ${mode === 'custom' ? 'active' : ''}" onclick="state.ui.timeRange='custom';render()">Custom</button>
+          </div>
+          ${mode === 'custom' ? `
+            <input type="date" style="width:auto;" value="${bounds.start}" onchange="state.ui.timeStart=this.value;render()" />
+            <span style="font-size:0.82rem;color:var(--text-muted)">to</span>
+            <input type="date" style="width:auto;" value="${bounds.end}" onchange="state.ui.timeEnd=this.value;render()" />
+          ` : `<span style="font-size:0.8rem;color:var(--text-muted);">${esc(rangeHint)}</span>`}
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select style="width:auto;min-width:160px;max-width:230px;padding:6px 9px;font-size:0.82rem;" onchange="state.ui.timeProjectId=this.value;render()" title="Filter time entries by Project">
+            <option value="">All Projects</option>
+            ${state.projects.map(p => `<option value="${p.id}" ${projFilter === p.id ? 'selected' : ''}>📁 ${esc(p.name)}</option>`).join('')}
+          </select>
+          <select style="width:auto;min-width:155px;padding:6px 9px;font-size:0.82rem;" onchange="state.ui.timeGroupBy=this.value;render()" title="Group logged time entries">
+            <option value="none" ${groupBy === 'none' ? 'selected' : ''}>Group: None</option>
+            <option value="project" ${groupBy === 'project' ? 'selected' : ''}>Group by: Project</option>
+            <option value="date" ${groupBy === 'date' ? 'selected' : ''}>Group by: Date</option>
+            <option value="week" ${groupBy === 'week' ? 'selected' : ''}>Group by: Week</option>
+            <option value="month" ${groupBy === 'month' ? 'selected' : ''}>Group by: Month</option>
+          </select>
+          ${(projFilter || groupBy !== 'none' || mode !== 'today') ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeProjectId='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
-        <div class="card-title">Logged Time Entries (${state.timeEntries.length})</div>
-      </div>
-      ${state.timeEntries.length === 0 ? `<div class="empty-state">No time entries logged yet. Start a timer on a task or add a manual entry above.</div>` : `
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Project / Task</th>
-                <th>Billable</th>
-                <th>Duration</th>
-                <th>Note</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${state.timeEntries.map(entry => {
-                const proj = getProject(entry.projectId);
-                const task = getTask(entry.taskId);
-                const sub = (task && entry.subtaskId) ? (task.subtasks || []).find(s => s.id === entry.subtaskId) : null;
-                return `
-                  <tr>
-                    <td>${esc(entry.date)}</td>
-                    <td>
-                      <strong>${esc(task ? task.title : 'Deleted Task')}</strong>${sub ? ` › ${esc(sub.title)}` : ''}
-                      <div style="font-size:0.76rem;color:var(--text-muted)">${esc(proj ? proj.name : 'Unknown Project')}</div>
-                    </td>
-                    <td><span class="badge ${entry.billable ? 'b-billable' : 'b-nonbillable'}">${entry.billable ? 'Billable' : 'Non-billable'}</span></td>
-                    <td><strong>${formatDuration(entry.durationSeconds)}</strong> <span style="font-size:0.75rem;color:var(--text-muted)">(${formatHoursNum(entry.durationSeconds)}h)</span></td>
-                    <td>${esc(entry.note || '')}</td>
-                    <td style="white-space:nowrap;">
-                      <button class="btn btn-xs" onclick="openTimeEntryModal('${entry.id}')">Edit</button>
-                      <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteTimeEntry('${entry.id}')">Delete</button>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+        <div class="card-title">Logged Time Entries (${entries.length})</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:0.8rem;">
+          <span class="badge b-billable">Billable: ${(billSec / 3600).toFixed(2)}h</span>
+          <span class="badge b-nonbillable">Non-billable: ${(nonBillSec / 3600).toFixed(2)}h</span>
+          <strong>Total: ${formatDuration(totalSec)} (${(totalSec / 3600).toFixed(2)}h)</strong>
         </div>
-      `}
+      </div>
+      ${bodyHtml}
     </div>
   `;
 }
@@ -6981,35 +7207,7 @@ function saveQuickLogActual(e, taskId, subtaskId) {
 
 // ===================== 6. REPORTS VIEW =====================
 function getReportDateBounds() {
-  const now = new Date();
-  const mode = state.ui.reportRange;
-  if (mode === 'week') {
-    const day = now.getDay(); // 0=Sun
-    const diffToMon = (day === 0 ? -6 : 1 - day);
-    const start = new Date(now);
-    start.setDate(now.getDate() + diffToMon);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return {
-      start: formatLocalDate(start),
-      end: formatLocalDate(end)
-    };
-  }
-  if (mode === 'month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return {
-      start: formatLocalDate(start),
-      end: formatLocalDate(end)
-    };
-  }
-  if (mode === 'custom') {
-    return {
-      start: state.ui.reportStart || addDaysStr(-14),
-      end: state.ui.reportEnd || todayStr()
-    };
-  }
-  return { start: '0000-01-01', end: '9999-12-31' };
+  return getDateRangeBounds(state.ui.reportRange, state.ui.reportStart, state.ui.reportEnd);
 }
 
 function renderReports(el) {
@@ -7093,6 +7291,7 @@ function renderReports(el) {
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;" class="no-print">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <div class="tab-switch">
+          <button class="tab-btn ${state.ui.reportRange === 'today' ? 'active' : ''}" onclick="state.ui.reportRange='today';render()">Today</button>
           <button class="tab-btn ${state.ui.reportRange === 'week' ? 'active' : ''}" onclick="state.ui.reportRange='week';render()">This Week</button>
           <button class="tab-btn ${state.ui.reportRange === 'month' ? 'active' : ''}" onclick="state.ui.reportRange='month';render()">This Month</button>
           <button class="tab-btn ${state.ui.reportRange === 'all' ? 'active' : ''}" onclick="state.ui.reportRange='all';render()">All Time</button>
@@ -7102,7 +7301,7 @@ function renderReports(el) {
           <input type="date" style="width:auto;" value="${bounds.start}" onchange="state.ui.reportStart=this.value;render()" />
           <span>to</span>
           <input type="date" style="width:auto;" value="${bounds.end}" onchange="state.ui.reportEnd=this.value;render()" />
-        ` : `<span style="font-size:0.82rem;color:var(--text-muted)">${state.ui.reportRange === 'all' ? 'All recorded dates' : `${bounds.start} to ${bounds.end}`}</span>`}
+        ` : `<span style="font-size:0.82rem;color:var(--text-muted)">${state.ui.reportRange === 'all' ? 'All recorded dates' : (state.ui.reportRange === 'today' ? bounds.start : `${bounds.start} to ${bounds.end}`)}</span>`}
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="exportReportCSV()">📥 Export CSV</button>
@@ -9530,7 +9729,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.39';
+const CADENCE_VERSION = 'v1.40';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
