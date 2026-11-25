@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.42</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.43</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.42 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.43 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2361,6 +2361,8 @@
 // ===================== DATA & STORAGE =====================
 const STORAGE_KEY = 'workflow_manager_data_v1';
 const THEME_KEY = 'workflow_manager_theme_v1';
+const LAST_VIEW_KEY = 'workflow_manager_last_view_v1';
+const VALID_VIEWS = ['today', 'projects', 'tasks', 'assignees', 'calendar', 'notes', 'time', 'reports', 'settings'];
 const IDB_NAME = 'WorkFlowManagerDB';
 const IDB_STORE = 'appState';
 const IDB_KEY = 'main';
@@ -2871,9 +2873,13 @@ function toggleSidebar(open) {
 }
 
 function switchView(view) {
-  state.ui.view = view;
+  const targetView = VALID_VIEWS.includes(view) ? view : 'today';
+  state.ui.view = targetView;
+  try {
+    localStorage.setItem(LAST_VIEW_KEY, targetView);
+  } catch (e) {}
   document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === view);
+    btn.classList.toggle('active', btn.dataset.view === targetView);
   });
   const titles = {
     today: 'Today',
@@ -2886,7 +2892,7 @@ function switchView(view) {
     reports: 'Reports',
     settings: 'Settings'
   };
-  document.getElementById('pageTitle').textContent = titles[view] || 'Cadence';
+  document.getElementById('pageTitle').textContent = titles[targetView] || 'Cadence';
   toggleSidebar(false);
   render();
 }
@@ -9923,7 +9929,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.42';
+const CADENCE_VERSION = 'v1.43';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
@@ -9943,7 +9949,12 @@ function syncVersionLabels() {
   updateTodayBadge();
   updateTimerUI();
   updateReminderButtonUI();
-  render();
+  let savedView = 'today';
+  try {
+    const last = localStorage.getItem(LAST_VIEW_KEY);
+    if (last && VALID_VIEWS.includes(last)) savedView = last;
+  } catch (e) {}
+  switchView(savedView);
   setTimeout(checkDueReminders, 2000);
 })();
 </script>
