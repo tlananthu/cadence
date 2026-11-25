@@ -2999,12 +2999,9 @@ function updateTodayBadge() {
   badge.style.display = count > 0 ? 'inline-block' : 'none';
 
   const summary = count > 0
-    ? `Today's Focus (${count}): ${data.overdue.length} Overdue, ${data.dueToday.length} Due Today, ${data.inProgress.length} In Progress
-` +
-      data.badgeItems.slice(0, 12).map(it => `• [${it.reasons.join(', ')}] ${it.label}`).join('
-') +
-      (data.badgeItems.length > 12 ? `
-… and ${data.badgeItems.length - 12} more` : '')
+    ? `Today's Focus (${count}): ${data.overdue.length} Overdue, ${data.dueToday.length} Due Today, ${data.inProgress.length} In Progress\n` +
+      data.badgeItems.slice(0, 12).map(it => `• [${it.reasons.join(', ')}] ${it.label}`).join('\n') +
+      (data.badgeItems.length > 12 ? `\n… and ${data.badgeItems.length - 12} more` : '')
     : 'No overdue, due-today, or in-progress items';
 
   badge.title = summary;
