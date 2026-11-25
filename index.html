@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.43</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.44</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.43 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.44 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3347,6 +3347,14 @@ function renderProjects(el) {
                   <button type="button" class="btn-int" onclick="openProjectToolLink('repo','${p.id}')" title="${esc(p.repoLink)}">📂 Box / SharePoint</button>
                 </div>
               ` : ''}
+              ${(p.logIds && p.logIds.length) ? `
+                <div style="margin-bottom:10px;">
+                  <div style="font-size:0.76rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;">LOG IDs (${p.logIds.length})</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                    ${p.logIds.map(lid => `<span class="badge b-todo" title="Calendar events starting with '${esc(lid)}:' auto-map to this project">#${esc(lid)}</span>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
               <div style="margin-bottom:12px;">
                 <div style="font-size:0.76rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;">STAGES (${(p.stages||[]).length})</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
@@ -3424,6 +3432,11 @@ function openProjectModal(projectId = null) {
       </div>
 
       <div style="border-top:1px dashed var(--border);margin:14px 0 12px;padding-top:12px;">
+        <div class="form-group">
+          <label>🏷️ External Log IDs (optional, comma-separated)</label>
+          <input type="text" id="pLogIds" value="${esc((p?.logIds || []).join(', '))}" placeholder="e.g. 3094, 3092, 2858" />
+          <div class="field-hint">Calendar events starting with these IDs (like <code>3094: ...</code> or <code>2858: ...</code>) will automatically map to this project.</div>
+        </div>
         <div class="form-group" style="margin-bottom:0;">
           <label>📂 Box Repository or SharePoint URL (optional)</label>
           <input type="url" id="pRepoLink" value="${esc(p?.repoLink || '')}" placeholder="e.g. https://app.box.com/folder/... or https://company.sharepoint.com/..." />
@@ -3495,9 +3508,17 @@ function saveProjectForm(e, projectId) {
   if (isDefault) {
     state.projects.forEach(pr => { pr.isDefault = false; });
   }
+  const rawLogIds = (document.getElementById('pLogIds')?.value || '');
+  const cleanLogIds = Array.from(new Set(
+    rawLogIds
+      .split(/[,\s;]+/)
+      .map(x => x.trim().replace(/^#/, ''))
+      .filter(Boolean)
+  ));
   const payload = {
     name: document.getElementById('pName').value.trim(),
     client: document.getElementById('pClient').value.trim(),
+    logIds: cleanLogIds,
     repoLink: (document.getElementById('pRepoLink')?.value || '').trim(),
     description: document.getElementById('pDesc').value.trim(),
     status: document.getElementById('pStatus').value,
@@ -8691,7 +8712,27 @@ function ensureAllProjectsHaveCalendarEventsTask() {
   });
 }
 
+function extractLeadingLogId(eventTitle) {
+  const m = String(eventTitle || '').trim().match(/^#?(\d{2,6})\s*[:\-–—]/);
+  return m ? m[1] : '';
+}
+
+function matchProjectByLogId(logId) {
+  const target = String(logId || '').trim().replace(/^#/, '');
+  if (!target) return null;
+  return (state.projects || []).find(p =>
+    !p.archived &&
+    Array.isArray(p.logIds) &&
+    p.logIds.some(id => String(id).trim().replace(/^#/, '') === target)
+  ) || null;
+}
+
 function matchProjectByTitlePrefix(eventTitle) {
+  const leadingId = extractLeadingLogId(eventTitle);
+  if (leadingId) {
+    const byId = matchProjectByLogId(leadingId);
+    if (byId) return byId;
+  }
   const normTitle = String(eventTitle || '').trim().replace(/\s+/g, ' ').toLowerCase();
   if (!normTitle) return null;
   const candidates = (state.projects || [])
@@ -9929,7 +9970,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.43';
+const CADENCE_VERSION = 'v1.44';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
