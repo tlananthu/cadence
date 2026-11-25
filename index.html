@@ -694,6 +694,51 @@
     background: var(--primary-soft);
   }
 
+  /* Time Tracker Weekly Summary Matrix */
+  .tt-week-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px 6px;
+  }
+  .tt-week-nav-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text);
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+  .tt-summary-table th, .tt-summary-table td {
+    text-align: right;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+  .tt-summary-table th:first-child, .tt-summary-table td:first-child {
+    text-align: left;
+    white-space: normal;
+    min-width: 160px;
+  }
+  .tt-summary-table th.is-today-col, .tt-summary-table td.is-today-col {
+    background: var(--primary-soft);
+  }
+  .tt-summary-table tr.tt-total-row td {
+    font-weight: 800;
+    background: var(--surface-2);
+    border-top: 2px solid var(--border);
+    border-bottom: none;
+  }
+  .tt-summary-table td.tt-row-total {
+    font-weight: 800;
+    background: var(--surface-2);
+    border-left: 1px solid var(--border);
+  }
+  .tt-summary-table tr.tt-total-row td.tt-row-total {
+    color: var(--primary);
+  }
+
   /* Time Tracker Groups */
   .time-group-card {
     border: 1px solid var(--border);
@@ -2234,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.41</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.42</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2271,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.41 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.42 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2388,6 +2433,7 @@ let state = {
     reportStart: '',
     reportEnd: '',
     timeRange: 'today', // today | week | month | custom | all
+    timeWeekOffset: 0,
     timeStart: '',
     timeEnd: '',
     timeProjectId: '',
@@ -6817,9 +6863,146 @@ function renderTimeEntriesTable(entries) {
   `;
 }
 
+function getTimeTrackerWeekInfo(weekOffset = 0) {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun
+  const diffToMon = (day === 0 ? -6 : 1 - day) + (Number(weekOffset || 0) * 7);
+  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
+  const dates = [];
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i);
+    dates.push({
+      dateStr: formatLocalDate(d),
+      dayName: dayNames[i],
+      shortDate: `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    });
+  }
+  const start = dates[0].dateStr;
+  const end = dates[6].dateStr;
+  const fmtOpt = { month: 'short', day: 'numeric' };
+  const label = `${mon.toLocaleDateString(undefined, fmtOpt)} – ${new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  return { start, end, dates, label };
+}
+
+function shiftTimeTrackerWeek(delta) {
+  state.ui.timeWeekOffset = Number(state.ui.timeWeekOffset || 0) + delta;
+  state.ui.timeRange = 'week';
+  render();
+}
+
+function resetTimeTrackerToThisWeek() {
+  state.ui.timeWeekOffset = 0;
+  state.ui.timeRange = 'week';
+  render();
+}
+
+function renderTimeWeeklySummary(weekInfo, projFilter) {
+  const today = todayStr();
+  const weekEntries = state.timeEntries
+    .map(e => ({ ...e, effectiveDate: getEffectiveTimeEntryDate(e.date) }))
+    .filter(e => {
+      if (e.effectiveDate < weekInfo.start || e.effectiveDate > weekInfo.end) return false;
+      if (projFilter && e.projectId !== projFilter) return false;
+      return true;
+    });
+
+  // Build project x date matrix
+  const projMap = new Map();
+  const dayTotals = {};
+  weekInfo.dates.forEach(d => { dayTotals[d.dateStr] = 0; });
+  let grandTotalSec = 0;
+
+  weekEntries.forEach(e => {
+    const pKey = e.projectId || '__unknown__';
+    if (!projMap.has(pKey)) {
+      const p = getProject(e.projectId);
+      const dayMap = {};
+      weekInfo.dates.forEach(d => { dayMap[d.dateStr] = { sec: 0, billSec: 0 }; });
+      projMap.set(pKey, {
+        key: pKey,
+        name: p ? p.name : 'Unknown Project',
+        days: dayMap,
+        totalSec: 0,
+        billSec: 0
+      });
+    }
+    const row = projMap.get(pKey);
+    const dur = e.durationSeconds || 0;
+    if (row.days[e.effectiveDate]) {
+      row.days[e.effectiveDate].sec += dur;
+      if (e.billable) row.days[e.effectiveDate].billSec += dur;
+    }
+    row.totalSec += dur;
+    if (e.billable) row.billSec += dur;
+    if (dayTotals[e.effectiveDate] !== undefined) dayTotals[e.effectiveDate] += dur;
+    grandTotalSec += dur;
+  });
+
+  const rows = Array.from(projMap.values()).sort((a, b) => b.totalSec - a.totalSec || a.name.localeCompare(b.name));
+
+  return `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📊 Weekly Summary (Projects × Dates)</div>
+          <div class="field-hint">${esc(weekInfo.label)}${projFilter ? ` • Filtered to ${esc(getProject(projFilter)?.name || 'Project')}` : ''}</div>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-muted);">
+          Week Total: <strong style="color:var(--text);">${formatDuration(grandTotalSec)} (${(grandTotalSec / 3600).toFixed(2)}h)</strong>
+        </div>
+      </div>
+      ${rows.length === 0 ? `<div class="empty-state" style="padding:22px 16px;">No time logged for this week${projFilter ? ' and project' : ''}.</div>` : `
+        <div class="table-wrap">
+          <table class="tt-summary-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                ${weekInfo.dates.map(d => `
+                  <th class="${d.dateStr === today ? 'is-today-col' : ''}">
+                    <div>${d.dayName}</div>
+                    <div style="font-size:0.68rem;font-weight:500;opacity:0.8;">${d.shortDate}</div>
+                  </th>
+                `).join('')}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td><strong>📁 ${esc(r.name)}</strong></td>
+                  ${weekInfo.dates.map(d => {
+                    const cell = r.days[d.dateStr];
+                    const hasVal = cell && cell.sec > 0;
+                    const tip = hasVal ? `${r.name} on ${d.dateStr}: ${formatDuration(cell.sec)} (Billable: ${(cell.billSec / 3600).toFixed(2)}h)` : '';
+                    return `<td class="${d.dateStr === today ? 'is-today-col' : ''}" title="${esc(tip)}">${hasVal ? `${(cell.sec / 3600).toFixed(2)}h` : '<span style="color:var(--text-muted);opacity:0.45;">—</span>'}</td>`;
+                  }).join('')}
+                  <td class="tt-row-total" title="${esc(r.name)}: ${formatDuration(r.totalSec)}">${(r.totalSec / 3600).toFixed(2)}h</td>
+                </tr>
+              `).join('')}
+              <tr class="tt-total-row">
+                <td>Daily Total</td>
+                ${weekInfo.dates.map(d => {
+                  const sec = dayTotals[d.dateStr] || 0;
+                  return `<td class="${d.dateStr === today ? 'is-today-col' : ''}" title="${d.dateStr}: ${formatDuration(sec)}">${sec > 0 ? `${(sec / 3600).toFixed(2)}h` : '<span style="opacity:0.45;">—</span>'}</td>`;
+                }).join('')}
+                <td class="tt-row-total" title="Week Grand Total: ${formatDuration(grandTotalSec)}">${(grandTotalSec / 3600).toFixed(2)}h</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
+}
+
 function renderTimeTracker(el) {
   const mode = state.ui.timeRange || 'today';
-  const bounds = getDateRangeBounds(mode, state.ui.timeStart, state.ui.timeEnd);
+  const weekOffset = Number(state.ui.timeWeekOffset || 0);
+  const weekInfo = getTimeTrackerWeekInfo(weekOffset);
+  const bounds = mode === 'week'
+    ? { start: weekInfo.start, end: weekInfo.end }
+    : getDateRangeBounds(mode, state.ui.timeStart, state.ui.timeEnd);
   const projFilter = state.ui.timeProjectId || '';
   const groupBy = state.ui.timeGroupBy || 'none';
 
@@ -6904,7 +7087,15 @@ function renderTimeTracker(el) {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
       <p class="helper-banner" style="margin:0;">Start a live timer on any task or subtask, or log time manually when you forget to start the timer.</p>
-      <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div class="tt-week-nav" title="Navigate weeks — filters both the Weekly Summary and Detailed Time Entries for the selected week">
+          <button type="button" class="btn btn-xs btn-ghost" onclick="shiftTimeTrackerWeek(-1)" title="Previous week">◀</button>
+          <span class="tt-week-nav-label">📅 ${esc(weekInfo.label)}</span>
+          <button type="button" class="btn btn-xs btn-ghost" onclick="shiftTimeTrackerWeek(1)" title="Next week">▶</button>
+          ${(weekOffset !== 0 || mode !== 'week') ? `<button type="button" class="btn btn-xs" onclick="resetTimeTrackerToThisWeek()" title="Filter both summary and details to current week">This Week</button>` : ''}
+        </div>
+        <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:16px;padding:12px 14px;">
@@ -6912,7 +7103,7 @@ function renderTimeTracker(el) {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <div class="tab-switch">
             <button class="tab-btn ${mode === 'today' ? 'active' : ''}" onclick="state.ui.timeRange='today';render()">Today</button>
-            <button class="tab-btn ${mode === 'week' ? 'active' : ''}" onclick="state.ui.timeRange='week';render()">This Week</button>
+            <button class="tab-btn ${mode === 'week' ? 'active' : ''}" onclick="resetTimeTrackerToThisWeek()">This Week</button>
             <button class="tab-btn ${mode === 'month' ? 'active' : ''}" onclick="state.ui.timeRange='month';render()">This Month</button>
             <button class="tab-btn ${mode === 'all' ? 'active' : ''}" onclick="state.ui.timeRange='all';render()">All Time</button>
             <button class="tab-btn ${mode === 'custom' ? 'active' : ''}" onclick="state.ui.timeRange='custom';render()">Custom</button>
@@ -6936,10 +7127,12 @@ function renderTimeTracker(el) {
             <option value="week" ${groupBy === 'week' ? 'selected' : ''}>Group by: Week</option>
             <option value="month" ${groupBy === 'month' ? 'selected' : ''}>Group by: Month</option>
           </select>
-          ${(projFilter || groupBy !== 'none' || mode !== 'today') ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeProjectId='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
+          ${(projFilter || groupBy !== 'none' || mode !== 'today' || weekOffset !== 0) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeWeekOffset=0;state.ui.timeProjectId='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
         </div>
       </div>
     </div>
+
+    ${renderTimeWeeklySummary(weekInfo, projFilter)}
 
     <div class="card">
       <div class="card-header">
@@ -9730,7 +9923,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.41';
+const CADENCE_VERSION = 'v1.42';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
