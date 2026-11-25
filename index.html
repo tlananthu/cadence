@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.49</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.50</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.49 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.50 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2903,17 +2903,113 @@ function switchView(view) {
   render();
 }
 
+function isSubtaskOverdue(sub, today = todayStr()) {
+  return Boolean(sub && sub.status !== 'Done' && sub.dueDate && sub.dueDate < today);
+}
+
+function isTaskDirectlyOverdue(t, today = todayStr()) {
+  return Boolean(t && t.status !== 'Done' && t.dueDate && t.dueDate < today);
+}
+
+function taskHasOverdue(t, today = todayStr()) {
+  return Boolean(t && t.status !== 'Done' && (
+    isTaskDirectlyOverdue(t, today) ||
+    (t.subtasks || []).some(s => isSubtaskOverdue(s, today))
+  ));
+}
+
+function isSubtaskDueToday(sub, today = todayStr()) {
+  return Boolean(sub && sub.status !== 'Done' && sub.dueDate === today);
+}
+
+function isTaskDirectlyDueToday(t, today = todayStr()) {
+  return Boolean(t && t.status !== 'Done' && t.dueDate === today);
+}
+
+function taskHasDueToday(t, today = todayStr()) {
+  return Boolean(t && t.status !== 'Done' && (
+    isTaskDirectlyDueToday(t, today) ||
+    (t.subtasks || []).some(s => isSubtaskDueToday(s, today))
+  ));
+}
+
+function collectTodayFocusData(today = todayStr()) {
+  const overdue = [];
+  const dueToday = [];
+  const inProgress = [];
+  const uniqueMap = new Map();
+
+  const registerItem = (key, label, reason) => {
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, { key, label, reasons: [reason] });
+    } else {
+      const entry = uniqueMap.get(key);
+      if (!entry.reasons.includes(reason)) entry.reasons.push(reason);
+    }
+  };
+
+  state.tasks.forEach(t => {
+    if (t.status === 'Done') return;
+    const isCalWrapper = isCalendarContainerTask(t);
+
+    if (isTaskDirectlyOverdue(t, today)) {
+      overdue.push({ kind: 'task', task: t });
+      registerItem(`task:${t.id}`, `Task: ${t.title}`, 'Overdue');
+    }
+    if (isTaskDirectlyDueToday(t, today)) {
+      dueToday.push({ kind: 'task', task: t });
+      registerItem(`task:${t.id}`, `Task: ${t.title}`, 'Due Today');
+    }
+    if (!isCalWrapper && t.status === 'In progress') {
+      inProgress.push({ kind: 'task', task: t });
+      registerItem(`task:${t.id}`, `Task: ${t.title}`, 'In Progress');
+    }
+
+    (t.subtasks || []).forEach(sub => {
+      if (sub.status === 'Done') return;
+      if (isSubtaskOverdue(sub, today)) {
+        overdue.push({ kind: 'subtask', task: t, subtask: sub });
+        registerItem(`sub:${t.id}:${sub.id}`, `Subtask: ${sub.title} (${t.title})`, 'Overdue');
+      }
+      if (isSubtaskDueToday(sub, today)) {
+        dueToday.push({ kind: 'subtask', task: t, subtask: sub });
+        registerItem(`sub:${t.id}:${sub.id}`, `Subtask: ${sub.title} (${t.title})`, 'Due Today');
+      }
+      if (sub.status === 'In progress') {
+        inProgress.push({ kind: 'subtask', task: t, subtask: sub });
+        registerItem(`sub:${t.id}:${sub.id}`, `Subtask: ${sub.title} (${t.title})`, 'In Progress');
+      }
+    });
+  });
+
+  return {
+    overdue,
+    dueToday,
+    inProgress,
+    badgeItems: Array.from(uniqueMap.values())
+  };
+}
+
 function updateTodayBadge() {
-  const t = todayStr();
-  const count = state.tasks.filter(task =>
-    task.status !== 'Done' && (
-      (task.dueDate && task.dueDate <= t) ||
-      task.status === 'In progress'
-    )
-  ).length;
+  const data = collectTodayFocusData(todayStr());
+  const count = data.badgeItems.length;
   const badge = document.getElementById('todayBadge');
+  if (!badge) return;
   badge.textContent = count;
   badge.style.display = count > 0 ? 'inline-block' : 'none';
+
+  const summary = count > 0
+    ? `Today's Focus (${count}): ${data.overdue.length} Overdue, ${data.dueToday.length} Due Today, ${data.inProgress.length} In Progress
+` +
+      data.badgeItems.slice(0, 12).map(it => `• [${it.reasons.join(', ')}] ${it.label}`).join('
+') +
+      (data.badgeItems.length > 12 ? `
+… and ${data.badgeItems.length - 12} more` : '')
+    : 'No overdue, due-today, or in-progress items';
+
+  badge.title = summary;
+  const navBtn = document.querySelector('.nav-item[data-view="today"]');
+  if (navBtn) navBtn.title = summary;
 }
 
 // ===================== TIMER ENGINE =====================
@@ -3134,9 +3230,10 @@ function openTasksFromToday({ due = '', status = '__open__', projectId = '', sea
 
 function renderToday(el) {
   const today = todayStr();
-  const overdue = state.tasks.filter(t => t.status !== 'Done' && t.dueDate && t.dueDate < today);
-  const dueToday = state.tasks.filter(t => t.status !== 'Done' && t.dueDate === today);
-  const inProgress = state.tasks.filter(t => t.status === 'In progress');
+  const focus = collectTodayFocusData(today);
+  const overdue = focus.overdue;
+  const dueToday = focus.dueToday;
+  const inProgress = focus.inProgress;
 
   // Planned items for today (both tasks and subtasks)
   const plannedItems = [];
@@ -3179,7 +3276,7 @@ function renderToday(el) {
     (state.activeTimer ? Math.floor((Date.now() - state.activeTimer.startedAt) / 1000) : 0);
 
   el.innerHTML = `
-    <p class="helper-banner">Your daily command center: focus on overdue items, tasks due today, active work, and your planned vs. actual hours.</p>
+    <p class="helper-banner">Your daily command center: focus on overdue items, tasks & subtasks due today, active work, and your planned vs. actual hours.${focus.badgeItems.length ? ` <span class="badge b-cat" style="margin-left:6px;" title="Unique open tasks & subtasks counted in the left Today badge">Today badge: ${focus.badgeItems.length} item${focus.badgeItems.length === 1 ? '' : 's'}</span>` : ''}</p>
 
 
 
@@ -3259,34 +3356,36 @@ function renderToday(el) {
       <div class="card">
         <div class="card-header">
           <div class="card-title" style="color:var(--danger)">🔥 Overdue (${overdue.length})</div>
-          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: 'overdue', status: '__open__' })" title="Open overdue tasks in Tasks view">Tasks →</button>
+          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: 'overdue', status: '__open__' })" title="Open overdue tasks & subtasks in Tasks view">Tasks →</button>
         </div>
-        ${overdue.length ? overdue.map(t => renderCompactTaskCard(t)).join('') : '<div class="empty-state">No overdue tasks. Nice work!</div>'}
+        ${overdue.length ? overdue.map(item => item.kind === 'subtask' ? renderCompactSubtaskCard(item.task, item.subtask) : renderCompactTaskCard(item.task)).join('') : '<div class="empty-state">No overdue tasks or subtasks. Nice work!</div>'}
       </div>
       <div class="card">
         <div class="card-header">
           <div class="card-title">📌 Due Today (${dueToday.length})</div>
-          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: 'today', status: '__open__' })" title="Open tasks due today in Tasks view">Tasks →</button>
+          <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: 'today', status: '__open__' })" title="Open tasks & subtasks due today in Tasks view">Tasks →</button>
         </div>
-        ${dueToday.length ? dueToday.map(t => renderCompactTaskCard(t)).join('') : '<div class="empty-state">No tasks due today.</div>'}
+        ${dueToday.length ? dueToday.map(item => item.kind === 'subtask' ? renderCompactSubtaskCard(item.task, item.subtask) : renderCompactTaskCard(item.task)).join('') : '<div class="empty-state">No tasks or subtasks due today.</div>'}
       </div>
       <div class="card">
         <div class="card-header">
           <div class="card-title" style="color:var(--info)">⚡ In Progress (${inProgress.length})</div>
           <button type="button" class="btn btn-xs" onclick="openTasksFromToday({ due: '', status: 'In progress' })" title="Open in-progress tasks in Tasks view">Tasks →</button>
         </div>
-        ${inProgress.length ? inProgress.map(t => renderCompactTaskCard(t)).join('') : '<div class="empty-state">No tasks marked In progress.</div>'}
+        ${inProgress.length ? inProgress.map(item => item.kind === 'subtask' ? renderCompactSubtaskCard(item.task, item.subtask) : renderCompactTaskCard(item.task)).join('') : '<div class="empty-state">No tasks or subtasks marked In progress.</div>'}
       </div>
     </div>
   `;
 }
 
 function renderCompactTaskCard(t) {
+  const today = todayStr();
   const proj = getProject(t.projectId);
   const blocker = isTaskBlockedByUnfinished(t);
   const running = isTimerRunningFor(t.id, null);
   const actualH = (getActualSecondsForTask(t.id, true) / 3600).toFixed(1);
   const estH = Number(t.estimatedHours || 0).toFixed(1);
+  const isOv = isTaskDirectlyOverdue(t, today);
   return `
     <div class="task-item" style="padding:11px 12px;" onclick="openTaskModal('${t.id}')" title="Click to edit task">
       <div class="task-title-row">
@@ -3296,6 +3395,7 @@ function renderCompactTaskCard(t) {
       </div>
       <div class="task-meta">
         <button type="button" class="btn-int" onclick="event.stopPropagation();openTasksFromToday({ projectId: '${esc(t.projectId || '')}', status: '__open__' })" title="Filter Tasks by project">📁 ${esc(proj ? proj.name : 'No project')} →</button>
+        ${t.dueDate ? `<span style="${isOv ? 'color:var(--danger);font-weight:700;' : ''}">📅 ${esc(t.dueDate)}</span>` : ''}
         ${t.assignee ? `<span class="badge b-assignee">👤 ${esc(t.assignee)}</span>` : ''}
         <span class="badge ${priorityBadgeClass(t.priority)}">${esc(t.priority)}</span>
         ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Repeats ${esc(t.recurrence)}">🔁 ${esc(t.recurrence)}</span>` : ''}
@@ -3306,6 +3406,37 @@ function renderCompactTaskCard(t) {
           ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
           : `<button class="btn btn-xs" onclick="startTimer('${t.id}')">▶ Timer</button>`}
         <button class="btn btn-xs" onclick="openTasksFromToday({ search: '${esc(t.title).replace(/'/g, "\'")}', status: '' })" title="View task on Tasks page">Tasks →</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderCompactSubtaskCard(t, sub) {
+  const today = todayStr();
+  const proj = getProject(t.projectId);
+  const running = isTimerRunningFor(t.id, sub.id);
+  const actualH = (getActualSecondsForSubtask(t.id, sub.id) / 3600).toFixed(1);
+  const estH = Number(sub.estimatedHours || 0).toFixed(1);
+  const isOv = isSubtaskOverdue(sub, today);
+  return `
+    <div class="task-item" style="padding:11px 12px;" onclick="openSubtaskModal('${t.id}','${sub.id}')" title="Click to edit subtask">
+      <div class="task-title-row">
+        <input type="checkbox" ${sub.status === 'Done' ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtaskDone('${t.id}','${sub.id}')" title="Mark subtask Done / To do" />
+        <span class="badge b-cat" style="font-size:0.68rem;">Subtask</span>
+        <span class="task-title ${sub.status === 'Done' ? 'done' : ''}" style="font-size:0.9rem;">${esc(sub.title)}</span>
+      </div>
+      <div style="font-size:0.76rem;color:var(--text-muted);margin-top:3px;">↳ Parent: <strong>${esc(t.title)}</strong></div>
+      <div class="task-meta">
+        <button type="button" class="btn-int" onclick="event.stopPropagation();openTasksFromToday({ projectId: '${esc(t.projectId || '')}', status: '__open__' })" title="Filter Tasks by project">📁 ${esc(proj ? proj.name : 'No project')} →</button>
+        ${sub.dueDate ? `<span style="${isOv ? 'color:var(--danger);font-weight:700;' : ''}">📅 ${esc(sub.dueDate)}</span>` : ''}
+        ${sub.assignee ? `<span class="badge b-assignee">👤 ${esc(sub.assignee)}</span>` : ''}
+        <span title="Planned vs Actual hours">⏱ ${estH}h est / ${actualH}h act</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;" onclick="event.stopPropagation()">
+        ${running
+          ? `<button class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹ Stop</button>`
+          : `<button class="btn btn-xs" onclick="startTimer('${t.id}','${sub.id}')">▶ Timer</button>`}
+        <button class="btn btn-xs" onclick="openTasksFromToday({ search: '${esc(sub.title).replace(/'/g, "\'")}', status: '' })" title="View in Tasks page">Tasks →</button>
       </div>
     </div>
   `;
@@ -3918,9 +4049,9 @@ function getFilteredTasks() {
       });
       if (!matchesAnySelected) return false;
     }
-    if (f.due === 'overdue' && !(t.dueDate && t.dueDate < today && t.status !== 'Done')) return false;
-    if (f.due === 'today' && t.dueDate !== today) return false;
-    if (f.due === 'week' && !(t.dueDate && t.dueDate >= today && t.dueDate <= weekEnd)) return false;
+    if (f.due === 'overdue' && !taskHasOverdue(t, today)) return false;
+    if (f.due === 'today' && !taskHasDueToday(t, today)) return false;
+    if (f.due === 'week' && !((t.dueDate && t.dueDate >= today && t.dueDate <= weekEnd) || (t.subtasks || []).some(s => s.status !== 'Done' && s.dueDate && s.dueDate >= today && s.dueDate <= weekEnd))) return false;
     if (f.due === 'none' && t.dueDate) return false;
     if (f.search) {
       const q = f.search.toLowerCase();
@@ -4173,8 +4304,8 @@ function renderTriageStrip() {
     ? baseTasks.filter(t => selAssignees.some(tok => matchesAssigneeToken(t.assignee, tok) || (t.subtasks || []).some(s => matchesAssigneeToken(s.assignee, tok))))
     : baseTasks;
 
-  const overdueCount = urgencyPool.filter(t => t.status !== 'Done' && t.dueDate && t.dueDate < today).length;
-  const dueTodayCount = urgencyPool.filter(t => t.status !== 'Done' && t.dueDate === today).length;
+  const overdueCount = urgencyPool.filter(t => taskHasOverdue(t, today)).length;
+  const dueTodayCount = urgencyPool.filter(t => taskHasDueToday(t, today)).length;
   const blockedCount = urgencyPool.filter(t => t.status === 'Blocked' || (t.status !== 'Done' && isTaskBlockedByUnfinished(t))).length;
   const openCount = urgencyPool.filter(t => t.status !== 'Done').length;
 
@@ -4458,7 +4589,7 @@ function renderTaskList(tasks) {
                       <span class="badge ${statusBadgeClass(sub.status)}">${esc(sub.status)}</span>
                       ${sub.assignee ? `<span class="badge b-assignee" title="Assigned to: ${esc(sub.assignee)}">👤 ${esc(sub.assignee)}</span>` : ''}
                       ${sTeam ? `<span class="badge b-cat clickable-team-badge" onclick="event.stopPropagation();filterByTeamName('${safeSTeam}')" title="Click to show tasks & subtasks for team ${esc(sTeam)}">🏷️ ${esc(sTeam)}</span>` : ''}
-                      ${sub.dueDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Due ${esc(sub.dueDate)}</span>` : ''}
+                      ${sub.dueDate ? `<span style="font-size:0.76rem;${isSubtaskOverdue(sub) ? 'color:var(--danger);font-weight:700;' : 'color:var(--text-muted);'}">${isSubtaskOverdue(sub) ? '🔥 Overdue ' : 'Due '}${esc(sub.dueDate)}</span>` : ''}
                       ${sub.plannedDate ? `<span style="font-size:0.76rem;color:var(--text-muted)">Planned ${esc(sub.plannedDate)} ${esc(sub.plannedStartTime || '')}</span>` : ''}
                       ${renderSubtaskDependencyBadge(sub)}
                     </div>
@@ -4545,8 +4676,8 @@ function renderTodoView(tasks) {
     const proj = getProject(t.projectId);
     const subs = t.subtasks || [];
     const doneSubs = subs.filter(s => s.status === 'Done').length;
-    const isOverdue = !isDone && t.dueDate && t.dueDate < today;
-    const isDueToday = !isDone && t.dueDate === today;
+    const isOverdue = taskHasOverdue(t, today);
+    const isDueToday = taskHasDueToday(t, today);
     const blocker = isTaskBlockedByUnfinished(t);
     const dueColor = isOverdue ? 'color:var(--danger);font-weight:700;' : (isDueToday ? 'color:var(--info);font-weight:700;' : '');
 
@@ -4662,7 +4793,7 @@ function renderTodoView(tasks) {
                       ${sub.description ? `<div class="rte-rendered" style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">${sanitizeNoteHtml(sub.description)}</div>` : ''}
                       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;font-size:0.72rem;color:var(--text-muted);align-items:center;" onclick="event.stopPropagation()">
                         ${sub.assignee ? `<span class="badge b-assignee" style="font-size:0.68rem;">👤 ${esc(sub.assignee)}</span>` : ''}
-                        ${sub.dueDate ? `<span>📅 ${esc(sub.dueDate)}</span>` : ''}
+                        ${sub.dueDate ? `<span style="${isSubtaskOverdue(sub, today) ? 'color:var(--danger);font-weight:700;' : ''}">${isSubtaskOverdue(sub, today) ? '🔥' : '📅'} ${esc(sub.dueDate)}</span>` : ''}
                         ${subRunning
                           ? `<button type="button" class="btn btn-xs btn-danger" onclick="stopActiveTimer()">⏹</button>`
                           : `<button type="button" class="btn btn-xs btn-ghost" onclick="startTimer('${t.id}','${sub.id}')" title="Start timer">▶</button>`}
@@ -9887,6 +10018,9 @@ function checkDueReminders() {
     }
     (t.subtasks || []).forEach(s => {
       if (s.status === 'Done') return;
+      if (s.dueDate && s.dueDate <= today) {
+        fire(`subdue_${s.id}`, s.dueDate < today ? 'Overdue Subtask' : 'Subtask Due Today', `${t.title} → ${s.title}`);
+      }
       if (s.plannedDate === today && s.plannedStartTime) {
         const [hh, mm] = s.plannedStartTime.split(':').map(Number);
         const targetMins = (hh || 0) * 60 + (mm || 0);
@@ -10097,7 +10231,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.49';
+const CADENCE_VERSION = 'v1.50';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
