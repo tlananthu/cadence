@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.46</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.47</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.46 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.47 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2872,8 +2872,13 @@ function toggleSidebar(open) {
   document.getElementById('sidebarOverlay').classList.toggle('open', open);
 }
 
+let calendarAutoScrollPending = false;
+
 function switchView(view) {
   const targetView = VALID_VIEWS.includes(view) ? view : 'today';
+  if (targetView === 'calendar') {
+    calendarAutoScrollPending = true;
+  }
   state.ui.view = targetView;
   try {
     localStorage.setItem(LAST_VIEW_KEY, targetView);
@@ -7875,6 +7880,8 @@ function collectCalendarItemsForDate(dateStr) {
 }
 
 function renderCalendar(el) {
+  const prevTimeline = document.getElementById('calDayTimeline');
+  const prevScrollTop = prevTimeline ? prevTimeline.scrollTop : null;
   const cur = getCalendarDateObj();
   const mode = state.ui.calendarMode || 'month';
   let rangeLabel = '';
@@ -7957,7 +7964,13 @@ function renderCalendar(el) {
     ${mode === 'day' ? renderCalendarDayZoomControl() : ''}
   `;
   if (mode === 'day') {
-    scrollCalendarToNowLine();
+    if (calendarAutoScrollPending) {
+      calendarAutoScrollPending = false;
+      scrollCalendarToNowLine();
+    } else if (prevScrollTop !== null) {
+      const nextTimeline = document.getElementById('calDayTimeline');
+      if (nextTimeline) nextTimeline.scrollTop = prevScrollTop;
+    }
   }
 }
 
@@ -9991,7 +10004,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.46';
+const CADENCE_VERSION = 'v1.47';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
