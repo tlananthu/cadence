@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.45</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.46</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.45 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.46 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3558,10 +3558,20 @@ function toggleArchiveProject(id) {
 }
 
 function deleteProject(id) {
-  const taskCount = state.tasks.filter(t => t.projectId === id).length;
-  if (!confirm(`Delete this project${taskCount ? ` and its ${taskCount} task(s)` : ''}? This cannot be undone.`)) return;
+  const projTasks = state.tasks.filter(t => t.projectId === id);
+  const taskIds = new Set(projTasks.map(t => t.id));
+  const timeCount = state.timeEntries.filter(e => e.projectId === id || taskIds.has(e.taskId)).length;
+  const parts = [];
+  if (projTasks.length) parts.push(`${projTasks.length} task(s)`);
+  if (timeCount) parts.push(`${timeCount} time entr${timeCount === 1 ? 'y' : 'ies'}`);
+  if (!confirm(`Delete this project${parts.length ? ` and its ${parts.join(' and ')}` : ''}? This cannot be undone.`)) return;
+  if (state.activeTimer && taskIds.has(state.activeTimer.taskId)) {
+    state.activeTimer = null;
+    updateTimerUI();
+  }
   state.projects = state.projects.filter(p => p.id !== id);
   state.tasks = state.tasks.filter(t => t.projectId !== id);
+  state.timeEntries = state.timeEntries.filter(e => e.projectId !== id && !taskIds.has(e.taskId));
   saveState();
   render();
   showToast('Project deleted');
@@ -5205,6 +5215,15 @@ function saveTaskForm(e, taskId) {
 
     if (existingTask) {
       const wasDone = existingTask.status === 'Done';
+      const keptSubIds = new Set(builtSubtasks.map(s => s.id));
+      const removedSubIds = new Set((existingTask.subtasks || []).map(s => s.id).filter(id => !keptSubIds.has(id)));
+      if (removedSubIds.size > 0) {
+        if (state.activeTimer && state.activeTimer.taskId === existingTask.id && removedSubIds.has(state.activeTimer.subtaskId)) {
+          state.activeTimer = null;
+          updateTimerUI();
+        }
+        state.timeEntries = state.timeEntries.filter(entry => !(entry.taskId === existingTask.id && removedSubIds.has(entry.subtaskId)));
+      }
       Object.assign(existingTask, payload, { subtasks: builtSubtasks });
       if (!wasDone && existingTask.status === 'Done') {
         if (typeof spawnNextRecurringTask === 'function') spawnNextRecurringTask(existingTask);
@@ -5228,12 +5247,20 @@ function saveTaskForm(e, taskId) {
 }
 
 function deleteTask(taskId) {
-  if (!confirm('Delete this task and its subtasks?')) return;
-  if (state.activeTimer && state.activeTimer.taskId === taskId) stopActiveTimer(true);
+  const timeCount = state.timeEntries.filter(e => e.taskId === taskId).length;
+  const msg = timeCount
+    ? `Delete this task, its subtasks, and its ${timeCount} logged time entr${timeCount === 1 ? 'y' : 'ies'}?`
+    : 'Delete this task and its subtasks?';
+  if (!confirm(msg)) return;
+  if (state.activeTimer && state.activeTimer.taskId === taskId) {
+    state.activeTimer = null;
+    updateTimerUI();
+  }
   state.tasks = state.tasks.filter(t => t.id !== taskId);
+  state.timeEntries = state.timeEntries.filter(e => e.taskId !== taskId);
   saveState();
   render();
-  showToast('Task deleted');
+  showToast('Task and its time entries deleted');
 }
 
 // Subtask Modal
@@ -5394,13 +5421,15 @@ function deleteSubtask(taskId, subId) {
   const t = getTask(taskId);
   if (!t) return;
   if (state.activeTimer && state.activeTimer.taskId === taskId && state.activeTimer.subtaskId === subId) {
-    stopActiveTimer(true);
+    state.activeTimer = null;
+    updateTimerUI();
   }
   t.subtasks = (t.subtasks || []).filter(s => s.id !== subId);
+  state.timeEntries = state.timeEntries.filter(e => !(e.taskId === taskId && e.subtaskId === subId));
   syncCalendarContainerStatus(t);
   saveState();
   render();
-  showToast('Subtask deleted');
+  showToast('Subtask and its time entries deleted');
 }
 
 function openMoveSubtaskModal(taskId, subId) {
@@ -9962,7 +9991,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.45';
+const CADENCE_VERSION = 'v1.46';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
