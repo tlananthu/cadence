@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.47</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.48</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.47 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.48 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2432,6 +2432,7 @@ let state = {
     taskFilters: { search: '', projectId: '', stageId: '', status: '__open__', priority: '', due: '', assignees: [], team: '', planned: '', defaultApplied: false },
     noteSearch: '',
     reportRange: 'week', // today | week | month | custom | all
+    reportOffset: 0,
     reportStart: '',
     reportEnd: '',
     timeRange: 'today', // today | week | month | custom | all
@@ -7453,8 +7454,55 @@ function saveQuickLogActual(e, taskId, subtaskId) {
 }
 
 // ===================== 6. REPORTS VIEW =====================
+function setReportRange(mode) {
+  state.ui.reportRange = mode;
+  state.ui.reportOffset = 0;
+  render();
+}
+
+function shiftReportRange(dir) {
+  const mode = state.ui.reportRange || 'week';
+  if (mode === 'all') return;
+  if (mode === 'custom') {
+    const b = getReportDateBounds();
+    const [sy, sm, sd] = b.start.split('-').map(Number);
+    const [ey, em, ed] = b.end.split('-').map(Number);
+    const sDt = new Date(sy, sm - 1, sd);
+    const eDt = new Date(ey, em - 1, ed);
+    const spanDays = Math.max(1, Math.round((eDt - sDt) / 86400000) + 1);
+    sDt.setDate(sDt.getDate() + dir * spanDays);
+    eDt.setDate(eDt.getDate() + dir * spanDays);
+    state.ui.reportStart = formatLocalDate(sDt);
+    state.ui.reportEnd = formatLocalDate(eDt);
+    render();
+    return;
+  }
+  state.ui.reportOffset = Number(state.ui.reportOffset || 0) + dir;
+  render();
+}
+
 function getReportDateBounds() {
-  return getDateRangeBounds(state.ui.reportRange, state.ui.reportStart, state.ui.reportEnd);
+  const mode = state.ui.reportRange || 'week';
+  const offset = Number(state.ui.reportOffset || 0);
+  const now = new Date();
+  if (mode === 'today') {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    const dStr = formatLocalDate(d);
+    return { start: dStr, end: dStr };
+  }
+  if (mode === 'week') {
+    const day = now.getDay(); // 0=Sun
+    const diffToMon = (day === 0 ? -6 : 1 - day) + (offset * 7);
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
+  }
+  if (mode === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
+  }
+  return getDateRangeBounds(mode, state.ui.reportStart, state.ui.reportEnd);
 }
 
 function renderReports(el) {
@@ -7537,12 +7585,16 @@ function renderReports(el) {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;" class="no-print">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div style="display:inline-flex;gap:4px;align-items:center;">
+          <button type="button" class="btn btn-sm" onclick="shiftReportRange(-1)" ${state.ui.reportRange === 'all' ? 'disabled' : ''} title="${state.ui.reportRange === 'today' ? 'Previous day' : (state.ui.reportRange === 'week' ? 'Previous week' : (state.ui.reportRange === 'month' ? 'Previous month' : (state.ui.reportRange === 'custom' ? 'Previous range' : 'Not applicable for All Time')))}">&lt;</button>
+          <button type="button" class="btn btn-sm" onclick="shiftReportRange(1)" ${state.ui.reportRange === 'all' ? 'disabled' : ''} title="${state.ui.reportRange === 'today' ? 'Next day' : (state.ui.reportRange === 'week' ? 'Next week' : (state.ui.reportRange === 'month' ? 'Next month' : (state.ui.reportRange === 'custom' ? 'Next range' : 'Not applicable for All Time')))}">&gt;</button>
+        </div>
         <div class="tab-switch">
-          <button class="tab-btn ${state.ui.reportRange === 'today' ? 'active' : ''}" onclick="state.ui.reportRange='today';render()">Today</button>
-          <button class="tab-btn ${state.ui.reportRange === 'week' ? 'active' : ''}" onclick="state.ui.reportRange='week';render()">This Week</button>
-          <button class="tab-btn ${state.ui.reportRange === 'month' ? 'active' : ''}" onclick="state.ui.reportRange='month';render()">This Month</button>
-          <button class="tab-btn ${state.ui.reportRange === 'all' ? 'active' : ''}" onclick="state.ui.reportRange='all';render()">All Time</button>
-          <button class="tab-btn ${state.ui.reportRange === 'custom' ? 'active' : ''}" onclick="state.ui.reportRange='custom';render()">Custom</button>
+          <button class="tab-btn ${state.ui.reportRange === 'today' ? 'active' : ''}" onclick="setReportRange('today')">Today</button>
+          <button class="tab-btn ${state.ui.reportRange === 'week' ? 'active' : ''}" onclick="setReportRange('week')">This Week</button>
+          <button class="tab-btn ${state.ui.reportRange === 'month' ? 'active' : ''}" onclick="setReportRange('month')">This Month</button>
+          <button class="tab-btn ${state.ui.reportRange === 'all' ? 'active' : ''}" onclick="setReportRange('all')">All Time</button>
+          <button class="tab-btn ${state.ui.reportRange === 'custom' ? 'active' : ''}" onclick="setReportRange('custom')">Custom</button>
         </div>
         ${state.ui.reportRange === 'custom' ? `
           <input type="date" style="width:auto;" value="${bounds.start}" onchange="state.ui.reportStart=this.value;render()" />
@@ -10004,7 +10056,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.47';
+const CADENCE_VERSION = 'v1.48';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
