@@ -2279,7 +2279,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.48</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.49</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2316,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.48 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.49 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2436,7 +2436,7 @@ let state = {
     reportStart: '',
     reportEnd: '',
     timeRange: 'today', // today | week | month | custom | all
-    timeWeekOffset: 0,
+    timeOffset: 0,
     timeStart: '',
     timeEnd: '',
     timeProjectId: '',
@@ -6917,11 +6917,66 @@ function renderTimeEntriesTable(entries) {
   `;
 }
 
-function getTimeTrackerWeekInfo(weekOffset = 0) {
+function setTimeRange(mode) {
+  state.ui.timeRange = mode;
+  state.ui.timeOffset = 0;
+  render();
+}
+
+function shiftTimeRange(dir) {
+  const mode = state.ui.timeRange || 'today';
+  if (mode === 'all') return;
+  if (mode === 'custom') {
+    const b = getTimeTrackerDateBounds();
+    const [sy, sm, sd] = b.start.split('-').map(Number);
+    const [ey, em, ed] = b.end.split('-').map(Number);
+    const sDt = new Date(sy, sm - 1, sd);
+    const eDt = new Date(ey, em - 1, ed);
+    const spanDays = Math.max(1, Math.round((eDt - sDt) / 86400000) + 1);
+    sDt.setDate(sDt.getDate() + dir * spanDays);
+    eDt.setDate(eDt.getDate() + dir * spanDays);
+    state.ui.timeStart = formatLocalDate(sDt);
+    state.ui.timeEnd = formatLocalDate(eDt);
+    render();
+    return;
+  }
+  state.ui.timeOffset = Number(state.ui.timeOffset || 0) + dir;
+  render();
+}
+
+function getTimeTrackerDateBounds() {
+  const mode = state.ui.timeRange || 'today';
+  const offset = Number(state.ui.timeOffset || 0);
   const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const diffToMon = (day === 0 ? -6 : 1 - day) + (Number(weekOffset || 0) * 7);
-  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
+  if (mode === 'today') {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    const dStr = formatLocalDate(d);
+    return { start: dStr, end: dStr };
+  }
+  if (mode === 'week') {
+    const day = now.getDay(); // 0=Sun
+    const diffToMon = (day === 0 ? -6 : 1 - day) + (offset * 7);
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
+  }
+  if (mode === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
+  }
+  return getDateRangeBounds(mode, state.ui.timeStart, state.ui.timeEnd);
+}
+
+function getTimeTrackerWeekInfoForDate(refDateStr) {
+  let ref = new Date();
+  if (refDateStr && /^\d{4}-\d{2}-\d{2}$/.test(refDateStr)) {
+    const [y, m, d] = refDateStr.split('-').map(Number);
+    ref = new Date(y, m - 1, d);
+  }
+  const day = ref.getDay(); // 0=Sun
+  const diffToMon = (day === 0 ? -6 : 1 - day);
+  const mon = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diffToMon);
   const dates = [];
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   for (let i = 0; i < 7; i++) {
@@ -6937,18 +6992,6 @@ function getTimeTrackerWeekInfo(weekOffset = 0) {
   const fmtOpt = { month: 'short', day: 'numeric' };
   const label = `${mon.toLocaleDateString(undefined, fmtOpt)} – ${new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
   return { start, end, dates, label };
-}
-
-function shiftTimeTrackerWeek(delta) {
-  state.ui.timeWeekOffset = Number(state.ui.timeWeekOffset || 0) + delta;
-  state.ui.timeRange = 'week';
-  render();
-}
-
-function resetTimeTrackerToThisWeek() {
-  state.ui.timeWeekOffset = 0;
-  state.ui.timeRange = 'week';
-  render();
 }
 
 function renderTimeWeeklySummary(weekInfo, projFilter) {
@@ -7052,11 +7095,13 @@ function renderTimeWeeklySummary(weekInfo, projFilter) {
 
 function renderTimeTracker(el) {
   const mode = state.ui.timeRange || 'today';
-  const weekOffset = Number(state.ui.timeWeekOffset || 0);
-  const weekInfo = getTimeTrackerWeekInfo(weekOffset);
-  const bounds = mode === 'week'
-    ? { start: weekInfo.start, end: weekInfo.end }
-    : getDateRangeBounds(mode, state.ui.timeStart, state.ui.timeEnd);
+  const timeOffset = Number(state.ui.timeOffset || 0);
+  const bounds = getTimeTrackerDateBounds();
+  const today = todayStr();
+  const summaryRefDate = (mode === 'all')
+    ? today
+    : ((mode === 'month' || mode === 'custom') && today >= bounds.start && today <= bounds.end ? today : bounds.start);
+  const weekInfo = getTimeTrackerWeekInfoForDate(summaryRefDate);
   const projFilter = state.ui.timeProjectId || '';
   const groupBy = state.ui.timeGroupBy || 'none';
 
@@ -7141,26 +7186,22 @@ function renderTimeTracker(el) {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
       <p class="helper-banner" style="margin:0;">Start a live timer on any task or subtask, or log time manually when you forget to start the timer.</p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <div class="tt-week-nav" title="Navigate weeks — filters both the Weekly Summary and Detailed Time Entries for the selected week">
-          <button type="button" class="btn btn-xs btn-ghost" onclick="shiftTimeTrackerWeek(-1)" title="Previous week">◀</button>
-          <span class="tt-week-nav-label">📅 ${esc(weekInfo.label)}</span>
-          <button type="button" class="btn btn-xs btn-ghost" onclick="shiftTimeTrackerWeek(1)" title="Next week">▶</button>
-          ${(weekOffset !== 0 || mode !== 'week') ? `<button type="button" class="btn btn-xs" onclick="resetTimeTrackerToThisWeek()" title="Filter both summary and details to current week">This Week</button>` : ''}
-        </div>
-        <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
-      </div>
+      <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
     </div>
 
     <div class="card" style="margin-bottom:16px;padding:12px 14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="display:inline-flex;gap:4px;align-items:center;">
+            <button type="button" class="btn btn-sm" onclick="shiftTimeRange(-1)" ${mode === 'all' ? 'disabled' : ''} title="${mode === 'today' ? 'Previous day' : (mode === 'week' ? 'Previous week' : (mode === 'month' ? 'Previous month' : (mode === 'custom' ? 'Previous range' : 'Not applicable for All Time')))}">&lt;</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTimeRange(1)" ${mode === 'all' ? 'disabled' : ''} title="${mode === 'today' ? 'Next day' : (mode === 'week' ? 'Next week' : (mode === 'month' ? 'Next month' : (mode === 'custom' ? 'Next range' : 'Not applicable for All Time')))}">&gt;</button>
+          </div>
           <div class="tab-switch">
-            <button class="tab-btn ${mode === 'today' ? 'active' : ''}" onclick="state.ui.timeRange='today';render()">Today</button>
-            <button class="tab-btn ${mode === 'week' ? 'active' : ''}" onclick="resetTimeTrackerToThisWeek()">This Week</button>
-            <button class="tab-btn ${mode === 'month' ? 'active' : ''}" onclick="state.ui.timeRange='month';render()">This Month</button>
-            <button class="tab-btn ${mode === 'all' ? 'active' : ''}" onclick="state.ui.timeRange='all';render()">All Time</button>
-            <button class="tab-btn ${mode === 'custom' ? 'active' : ''}" onclick="state.ui.timeRange='custom';render()">Custom</button>
+            <button class="tab-btn ${mode === 'today' ? 'active' : ''}" onclick="setTimeRange('today')">Today</button>
+            <button class="tab-btn ${mode === 'week' ? 'active' : ''}" onclick="setTimeRange('week')">This Week</button>
+            <button class="tab-btn ${mode === 'month' ? 'active' : ''}" onclick="setTimeRange('month')">This Month</button>
+            <button class="tab-btn ${mode === 'all' ? 'active' : ''}" onclick="setTimeRange('all')">All Time</button>
+            <button class="tab-btn ${mode === 'custom' ? 'active' : ''}" onclick="setTimeRange('custom')">Custom</button>
           </div>
           ${mode === 'custom' ? `
             <input type="date" style="width:auto;" value="${bounds.start}" onchange="state.ui.timeStart=this.value;render()" />
@@ -7181,7 +7222,7 @@ function renderTimeTracker(el) {
             <option value="week" ${groupBy === 'week' ? 'selected' : ''}>Group by: Week</option>
             <option value="month" ${groupBy === 'month' ? 'selected' : ''}>Group by: Month</option>
           </select>
-          ${(projFilter || groupBy !== 'none' || mode !== 'today' || weekOffset !== 0) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeWeekOffset=0;state.ui.timeProjectId='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
+          ${(projFilter || groupBy !== 'none' || mode !== 'today' || timeOffset !== 0) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeOffset=0;state.ui.timeProjectId='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
         </div>
       </div>
     </div>
@@ -10056,7 +10097,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.48';
+const CADENCE_VERSION = 'v1.49';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
