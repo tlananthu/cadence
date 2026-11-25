@@ -737,23 +737,56 @@
     background: var(--primary);
   }
   .day-chart {
+    overflow-x: auto;
+    padding-top: 6px;
+  }
+  .day-chart-inner {
+    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    height: 170px;
-    padding-top: 20px;
-    overflow-x: auto;
+    min-width: 100%;
+    width: max-content;
+    padding: 26px 8px 0 42px;
+    box-sizing: border-box;
+  }
+  .day-guide-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1.5px dashed var(--warning);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .day-guide-label {
+    position: absolute;
+    left: 0;
+    top: -10px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: var(--warning);
+    background: var(--surface);
+    padding: 0 4px 0 0;
+    line-height: 1.2;
   }
   .day-col {
-    flex: 1 0 38px;
+    flex: 1 0 46px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: 100%;
+    justify-content: flex-end;
+    position: relative;
+    z-index: 3;
+  }
+  .day-bar-slot {
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: flex-end;
   }
   .day-bar {
-    width: 24px;
+    width: 26px;
     border-radius: 6px 6px 0 0;
     min-height: 2px;
     overflow: hidden;
@@ -776,6 +809,7 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
     font-size: 0.74rem;
     color: var(--text-muted);
     font-weight: 600;
@@ -788,8 +822,8 @@
     margin-right: 4px;
     vertical-align: middle;
   }
-  .day-val { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
-  .day-lbl { font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; white-space: nowrap; }
+  .day-val { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 3px; white-space: nowrap; font-weight: 600; }
+  .day-lbl { font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; height: 16px; line-height: 16px; white-space: nowrap; }
 
   /* Modal */
   .modal-backdrop {
@@ -2171,7 +2205,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.37</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.38</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2208,7 +2242,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.37 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.38 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -3780,8 +3814,11 @@ function getFilteredTasks() {
     return true;
   });
 
-  // Sort by earliest due or planned date ascending (tasks without dates placed last)
+  // Keep Imported Calendar Events always at the bottom, then sort by earliest due/planned date ascending
   return filtered.sort((a, b) => {
+    const aCal = isCalendarContainerTask(a) ? 1 : 0;
+    const bCal = isCalendarContainerTask(b) ? 1 : 0;
+    if (aCal !== bCal) return aCal - bCal;
     const da = getEarliestTaskSortDate(a);
     const db = getEarliestTaskSortDate(b);
     if (da !== db) return da.localeCompare(db);
@@ -7010,7 +7047,9 @@ function renderReports(el) {
     else byDay[e.date].nonBillable += dur;
   });
   const dayRows = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxDaySec = Math.max(1, ...dayRows.map(d => d[1].total));
+  const DAY_GUIDE_HOURS = 8;
+  const DAY_GUIDE_SEC = DAY_GUIDE_HOURS * 3600;
+  const maxDaySec = Math.max(DAY_GUIDE_SEC, ...dayRows.map(d => d[1].total));
 
   // Planned vs Actual for tasks & subtasks within date bounds
   const pvaRows = [];
@@ -7115,27 +7154,40 @@ function renderReports(el) {
           <div class="day-legend">
             <span><span class="day-legend-dot" style="background:var(--success)"></span>Billable</span>
             <span><span class="day-legend-dot" style="background:var(--text-muted);opacity:0.45"></span>Non-billable</span>
+            <span><span style="display:inline-block;width:12px;border-top:2px dashed var(--warning);vertical-align:middle;margin-right:4px;"></span>8.00h guide</span>
           </div>
         </div>
-        ${dayRows.length === 0 ? `<div class="empty-state">No time logged in this date range.</div>` : `
-          <div class="day-chart">
-            ${dayRows.map(([date, d]) => {
-              const hPct = Math.max(4, Math.round((d.total / maxDaySec) * 100));
-              const billShare = d.total > 0 ? (d.billable / d.total) * 100 : 0;
-              const nonBillShare = d.total > 0 ? (d.nonBillable / d.total) * 100 : 0;
-              return `
-                <div class="day-col" title="${date}: ${(d.total/3600).toFixed(2)}h total (Billable: ${(d.billable/3600).toFixed(2)}h, Non-billable: ${(d.nonBillable/3600).toFixed(2)}h)">
-                  <div class="day-val">${(d.total/3600).toFixed(1)}h</div>
-                  <div class="day-bar" style="height:${hPct}%">
-                    ${nonBillShare > 0 ? `<div class="day-bar-nonbill" style="height:${nonBillShare.toFixed(1)}%"></div>` : ''}
-                    ${billShare > 0 ? `<div class="day-bar-bill" style="height:${billShare.toFixed(1)}%"></div>` : ''}
-                  </div>
-                  <div class="day-lbl">${date.slice(5)}</div>
+        ${dayRows.length === 0 ? `<div class="empty-state">No time logged in this date range.</div>` : (() => {
+          const PLOT_H = 140;
+          const LBL_H = 22;
+          const guideBottomPx = LBL_H + Math.round((DAY_GUIDE_SEC / maxDaySec) * PLOT_H);
+          return `
+            <div class="day-chart">
+              <div class="day-chart-inner">
+                <div class="day-guide-line" style="bottom:${guideBottomPx}px;" title="8.00h daily guidance ceiling">
+                  <span class="day-guide-label">8.00h</span>
                 </div>
-              `;
-            }).join('')}
-          </div>
-        `}
+                ${dayRows.map(([date, d]) => {
+                  const barPx = Math.max(3, Math.round((d.total / maxDaySec) * PLOT_H));
+                  const billShare = d.total > 0 ? (d.billable / d.total) * 100 : 0;
+                  const nonBillShare = d.total > 0 ? (d.nonBillable / d.total) * 100 : 0;
+                  return `
+                    <div class="day-col" title="${date}: ${(d.total/3600).toFixed(2)}h total (Billable: ${(d.billable/3600).toFixed(2)}h, Non-billable: ${(d.nonBillable/3600).toFixed(2)}h)">
+                      <div class="day-bar-slot">
+                        <div class="day-val">${(d.total/3600).toFixed(2)}h</div>
+                        <div class="day-bar" style="height:${barPx}px">
+                          ${nonBillShare > 0 ? `<div class="day-bar-nonbill" style="height:${nonBillShare.toFixed(2)}%"></div>` : ''}
+                          ${billShare > 0 ? `<div class="day-bar-bill" style="height:${billShare.toFixed(2)}%"></div>` : ''}
+                        </div>
+                      </div>
+                      <div class="day-lbl">${date.slice(5)}</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        })()}
       </div>
     </div>
 
@@ -9476,7 +9528,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.37';
+const CADENCE_VERSION = 'v1.38';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
