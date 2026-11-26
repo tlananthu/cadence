@@ -26,6 +26,11 @@
     --info-soft: #f0f9ff;
     --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
     --shadow-lg: 0 10px 25px rgba(15, 23, 42, 0.12);
+    --search-hl-bg: #fef08a;
+    --search-hl-text: #713f12;
+    --search-hl-border: rgba(202, 138, 4, 0.35);
+    --budgeted: #8b5cf6;
+    --budgeted-soft: rgba(139, 92, 246, 0.14);
     --radius: 10px;
     --sidebar-w: 250px;
   }
@@ -50,6 +55,11 @@
     --info-soft: rgba(14, 165, 233, 0.15);
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.45);
+    --search-hl-bg: rgba(250, 204, 21, 0.28);
+    --search-hl-text: #fef08a;
+    --search-hl-border: rgba(250, 204, 21, 0.45);
+    --budgeted: #a78bfa;
+    --budgeted-soft: rgba(167, 139, 250, 0.18);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -878,6 +888,71 @@
   .day-bar-bill {
     width: 100%;
     background: var(--success);
+  }
+  .day-bar-budget {
+    width: 100%;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--budgeted),
+      var(--budgeted) 4px,
+      rgba(255, 255, 255, 0.28) 4px,
+      rgba(255, 255, 255, 0.28) 7px
+    );
+  }
+  .bar-track-dual {
+    height: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+  }
+  .bar-fill-budget {
+    height: 100%;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--budgeted),
+      var(--budgeted) 5px,
+      rgba(255, 255, 255, 0.26) 5px,
+      rgba(255, 255, 255, 0.26) 9px
+    );
+  }
+  .b-budgeted {
+    background: var(--budgeted-soft);
+    color: var(--budgeted);
+    border: 1px dashed var(--budgeted);
+  }
+  .b-adjustment {
+    background: var(--warning-soft);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+  tr.tt-row-budgeted {
+    background: var(--budgeted-soft);
+  }
+  .tt-cell-has-budget {
+    text-decoration: underline dotted var(--budgeted);
+    text-underline-offset: 3px;
+  }
+  .reconcile-banner {
+    background: var(--budgeted-soft);
+    border: 1px solid var(--budgeted);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+  .reconcile-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 7px 10px;
+    margin-top: 6px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 0.83rem;
   }
   .day-legend {
     display: inline-flex;
@@ -2260,6 +2335,16 @@
     }
   }
 
+  /* Theme-aware search keyword highlight */
+  mark.search-hl {
+    background: var(--search-hl-bg);
+    color: var(--search-hl-text);
+    border: 1px solid var(--search-hl-border);
+    border-radius: 3px;
+    padding: 0 2px;
+    font-weight: inherit;
+  }
+
   /* Print styles for Reports */
   @media print {
     .sidebar, .topbar, .no-print, .sidebar-overlay, .toast, .modal-backdrop { display: none !important; }
@@ -2279,7 +2364,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.50</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.52</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2316,7 +2401,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.50 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.52 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2440,6 +2525,7 @@ let state = {
     timeStart: '',
     timeEnd: '',
     timeProjectId: '',
+    timeEntryType: '', // '' | actual | budgeted | adjustment
     timeGroupBy: 'none', // none | project | date | week | month
     activeTaskPresetId: '',
     showMoreFilters: false,
@@ -2705,6 +2791,59 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+function escapeRegExp(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightSearchInContainer(containerEl, query) {
+  if (!containerEl) return;
+  const q = String(query || '').trim();
+  if (!q) return;
+  const re = new RegExp(escapeRegExp(q), 'gi');
+  const skipTags = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON', 'MARK']);
+
+  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      let p = node.parentNode;
+      while (p && p !== containerEl) {
+        if (p.nodeType === 1 && skipTags.has(p.tagName)) return NodeFilter.FILTER_REJECT;
+        p = p.parentNode;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  const textNodes = [];
+  let cur;
+  while ((cur = walker.nextNode())) textNodes.push(cur);
+
+  textNodes.forEach(node => {
+    const text = node.nodeValue;
+    re.lastIndex = 0;
+    if (!re.test(text)) return;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let lastIdx = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > lastIdx) {
+        frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
+      }
+      const mark = document.createElement('mark');
+      mark.className = 'search-hl';
+      mark.textContent = m[0];
+      frag.appendChild(mark);
+      lastIdx = m.index + m[0].length;
+      if (m[0].length === 0) break;
+    }
+    if (lastIdx < text.length) {
+      frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+    }
+    if (node.parentNode) node.parentNode.replaceChild(frag, node);
+  });
+}
+
 function sanitizeNoteHtml(html) {
   const div = document.createElement('div');
   div.innerHTML = html || '';
@@ -2784,9 +2923,46 @@ function isTaskBlockedByUnfinished(task) {
   return null;
 }
 
+function getTimeEntryType(entry) {
+  const t = (entry && entry.entryType) ? String(entry.entryType).toLowerCase() : 'actual';
+  if (t === 'budgeted' || t === 'adjustment') return t;
+  return 'actual';
+}
+
+function getFirstWorkingDayOfNextMonth(dateStr) {
+  const parts = String(dateStr || todayStr()).split('-').map(Number);
+  const y = parts[0] || new Date().getFullYear();
+  const m = parts[1] || (new Date().getMonth() + 1);
+  // m is 1-based; new Date(y, m, 1) gives 1st of next month
+  const dt = new Date(y, m, 1);
+  const day = dt.getDay();
+  if (day === 6) dt.setDate(dt.getDate() + 2);
+  else if (day === 0) dt.setDate(dt.getDate() + 1);
+  return formatLocalDate(dt);
+}
+
+function getRemainingMonthWeekdays(fromDateStr = todayStr()) {
+  const parts = String(fromDateStr || todayStr()).split('-').map(Number);
+  const start = (parts.length === 3 && !parts.some(isNaN))
+    ? new Date(parts[0], parts[1] - 1, parts[2])
+    : new Date();
+  const lastOfMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  const days = [];
+  const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  while (cur <= lastOfMonth) {
+    const dow = cur.getDay();
+    if (dow >= 1 && dow <= 5) {
+      days.push(formatLocalDate(cur));
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
 function getActualSecondsForTask(taskId, includeSubtasks = true) {
   let total = 0;
   state.timeEntries.forEach(e => {
+    if (getTimeEntryType(e) === 'budgeted') return;
     if (e.taskId === taskId) {
       if (includeSubtasks || !e.subtaskId) total += (e.durationSeconds || 0);
     }
@@ -2802,6 +2978,7 @@ function getActualSecondsForTask(taskId, includeSubtasks = true) {
 function getActualSecondsForSubtask(taskId, subtaskId) {
   let total = 0;
   state.timeEntries.forEach(e => {
+    if (getTimeEntryType(e) === 'budgeted') return;
     if (e.taskId === taskId && e.subtaskId === subtaskId) total += (e.durationSeconds || 0);
   });
   if (state.activeTimer && state.activeTimer.taskId === taskId && state.activeTimer.subtaskId === subtaskId) {
@@ -2811,13 +2988,15 @@ function getActualSecondsForSubtask(taskId, subtaskId) {
 }
 
 function formatDuration(sec) {
-  sec = Math.max(0, Math.floor(sec || 0));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${s}s`;
+  const raw = Math.round(Number(sec || 0));
+  const sign = raw < 0 ? '-' : '';
+  const abs = Math.abs(raw);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const s = abs % 60;
+  if (h > 0) return `${sign}${h}h ${m}m`;
+  if (m > 0) return `${sign}${m}m`;
+  return `${sign}${s}s`;
 }
 
 function formatClock(sec) {
@@ -3268,7 +3447,7 @@ function renderToday(el) {
 
   const totalPlannedHrs = plannedItems.reduce((s, i) => s + i.estHours, 0);
   const totalActualTodaySec = state.timeEntries
-    .filter(e => e.date === today)
+    .filter(e => e.date === today && getTimeEntryType(e) !== 'budgeted')
     .reduce((s, e) => s + (e.durationSeconds || 0), 0) +
     (state.activeTimer ? Math.floor((Date.now() - state.activeTimer.startedAt) / 1000) : 0);
 
@@ -4454,6 +4633,7 @@ function renderTasks(el) {
 
     <div id="taskResultsContainer">${renderTaskViewContent(tasks)}</div>
   `;
+  highlightSearchInContainer(document.getElementById('taskResultsContainer'), f.search);
 }
 
 function renderTaskViewContent(tasks) {
@@ -4467,6 +4647,7 @@ function refreshTaskResults() {
   if (!box) return;
   const tasks = getFilteredTasks();
   box.innerHTML = renderTaskViewContent(tasks);
+  highlightSearchInContainer(box, state.ui.taskFilters.search);
 }
 
 function clearTaskFilters() {
@@ -6082,12 +6263,14 @@ function renderNotes(el) {
 
     <div id="notesResultsContainer">${renderNotesGrid(notes)}</div>
   `;
+  highlightSearchInContainer(document.getElementById('notesResultsContainer'), state.ui.noteSearch);
 }
 
 function refreshNotesResults() {
   const box = document.getElementById('notesResultsContainer');
   if (!box) return;
   box.innerHTML = renderNotesGrid(getFilteredNotes());
+  highlightSearchInContainer(box, state.ui.noteSearch);
 }
 
 function renderNotesGrid(notes) {
@@ -7011,6 +7194,7 @@ function renderTimeEntriesTable(entries) {
           <tr>
             <th>Date</th>
             <th>Project / Task</th>
+            <th>Type</th>
             <th>Billable</th>
             <th>Duration</th>
             <th>Note</th>
@@ -7022,17 +7206,32 @@ function renderTimeEntriesTable(entries) {
             const proj = getProject(entry.projectId);
             const task = getTask(entry.taskId);
             const sub = (task && entry.subtaskId) ? (task.subtasks || []).find(s => s.id === entry.subtaskId) : null;
+            const eType = getTimeEntryType(entry);
+            const isBudgeted = eType === 'budgeted';
+            const isAdj = eType === 'adjustment';
+            let typeBadge = `<span class="badge b-todo">Actual</span>`;
+            if (isBudgeted) {
+              typeBadge = entry.reconciled
+                ? `<span class="badge b-budgeted" title="Budgeted entry reconciled">🔮 Budgeted • ✓ Reconciled</span>`
+                : `<span class="badge b-budgeted" title="Month-end budgeted timesheet entry">🔮 Budgeted</span>`;
+            } else if (isAdj) {
+              typeBadge = `<span class="badge b-adjustment" title="Next-month variance true-up adjustment">⚖️ Variance Adj</span>`;
+            }
+            const durColor = isBudgeted ? 'color:var(--budgeted);' : (entry.durationSeconds < 0 ? 'color:var(--danger);' : '');
+            const signedHours = (entry.durationSeconds >= 0 && isAdj ? '+' : '') + formatHoursNum(entry.durationSeconds) + 'h';
             return `
-              <tr>
+              <tr class="${isBudgeted ? 'tt-row-budgeted' : ''}">
                 <td style="white-space:nowrap;">${esc(entry.date)}</td>
                 <td>
                   <strong>${esc(task ? task.title : 'Deleted Task')}</strong>${sub ? ` › ${esc(sub.title)}` : ''}
                   <div style="font-size:0.76rem;color:var(--text-muted)">${esc(proj ? proj.name : 'Unknown Project')}</div>
                 </td>
+                <td style="white-space:nowrap;">${typeBadge}</td>
                 <td><span class="badge ${entry.billable ? 'b-billable' : 'b-nonbillable'}">${entry.billable ? 'Billable' : 'Non-billable'}</span></td>
-                <td style="white-space:nowrap;"><strong>${formatDuration(entry.durationSeconds)}</strong> <span style="font-size:0.75rem;color:var(--text-muted)">(${formatHoursNum(entry.durationSeconds)}h)</span></td>
+                <td style="white-space:nowrap;${durColor}"><strong>${entry.durationSeconds > 0 && isAdj ? '+' : ''}${formatDuration(entry.durationSeconds)}</strong> <span style="font-size:0.75rem;color:var(--text-muted)">(${signedHours})</span></td>
                 <td>${esc(entry.note || '')}</td>
                 <td style="white-space:nowrap;">
+                  ${isBudgeted && !entry.reconciled ? `<button class="btn btn-xs btn-primary" onclick="openReconcileBudgetModal('${entry.id}')" title="Reconcile budgeted vs actual hours and log variance adjustment next month">⚖️ Reconcile</button>` : ''}
                   <button class="btn btn-xs" onclick="openTimeEntryModal('${entry.id}')">Edit</button>
                   <button class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="deleteTimeEntry('${entry.id}')">Delete</button>
                 </td>
@@ -7122,46 +7321,58 @@ function getTimeTrackerWeekInfoForDate(refDateStr) {
   return { start, end, dates, label };
 }
 
-function renderTimeWeeklySummary(weekInfo, projFilter) {
+function renderTimeWeeklySummary(weekInfo, projFilter, typeFilter = '') {
   const today = todayStr();
   const weekEntries = state.timeEntries
     .map(e => ({ ...e, effectiveDate: getEffectiveTimeEntryDate(e.date) }))
     .filter(e => {
       if (e.effectiveDate < weekInfo.start || e.effectiveDate > weekInfo.end) return false;
       if (projFilter && e.projectId !== projFilter) return false;
+      if (typeFilter && getTimeEntryType(e) !== typeFilter) return false;
       return true;
     });
 
-  // Build project x date matrix
+  // Build project x date matrix (rolling Actual + Budgeted + Adjustment into the same project row)
   const projMap = new Map();
   const dayTotals = {};
-  weekInfo.dates.forEach(d => { dayTotals[d.dateStr] = 0; });
+  const dayBudgetTotals = {};
+  weekInfo.dates.forEach(d => {
+    dayTotals[d.dateStr] = 0;
+    dayBudgetTotals[d.dateStr] = 0;
+  });
   let grandTotalSec = 0;
+  let grandBudgetSec = 0;
 
   weekEntries.forEach(e => {
     const pKey = e.projectId || '__unknown__';
     if (!projMap.has(pKey)) {
       const p = getProject(e.projectId);
       const dayMap = {};
-      weekInfo.dates.forEach(d => { dayMap[d.dateStr] = { sec: 0, billSec: 0 }; });
+      weekInfo.dates.forEach(d => { dayMap[d.dateStr] = { sec: 0, billSec: 0, budgetSec: 0 }; });
       projMap.set(pKey, {
         key: pKey,
         name: p ? p.name : 'Unknown Project',
         days: dayMap,
         totalSec: 0,
-        billSec: 0
+        billSec: 0,
+        budgetSec: 0
       });
     }
     const row = projMap.get(pKey);
     const dur = e.durationSeconds || 0;
+    const isBud = getTimeEntryType(e) === 'budgeted';
     if (row.days[e.effectiveDate]) {
       row.days[e.effectiveDate].sec += dur;
       if (e.billable) row.days[e.effectiveDate].billSec += dur;
+      if (isBud) row.days[e.effectiveDate].budgetSec += dur;
     }
     row.totalSec += dur;
     if (e.billable) row.billSec += dur;
+    if (isBud) row.budgetSec += dur;
     if (dayTotals[e.effectiveDate] !== undefined) dayTotals[e.effectiveDate] += dur;
+    if (isBud && dayBudgetTotals[e.effectiveDate] !== undefined) dayBudgetTotals[e.effectiveDate] += dur;
     grandTotalSec += dur;
+    if (isBud) grandBudgetSec += dur;
   });
 
   const rows = Array.from(projMap.values()).sort((a, b) => b.totalSec - a.totalSec || a.name.localeCompare(b.name));
@@ -7171,10 +7382,11 @@ function renderTimeWeeklySummary(weekInfo, projFilter) {
       <div class="card-header">
         <div>
           <div class="card-title">📊 Weekly Summary (Projects × Dates)</div>
-          <div class="field-hint">${esc(weekInfo.label)}${projFilter ? ` • Filtered to ${esc(getProject(projFilter)?.name || 'Project')}` : ''}</div>
+          <div class="field-hint">${esc(weekInfo.label)}${projFilter ? ` • Filtered to ${esc(getProject(projFilter)?.name || 'Project')}` : ''}${grandBudgetSec > 0 ? ` • <span style="color:var(--budgeted);font-weight:600;">Dotted violet = includes budgeted hours</span>` : ''}</div>
         </div>
         <div style="font-size:0.82rem;color:var(--text-muted);">
           Week Total: <strong style="color:var(--text);">${formatDuration(grandTotalSec)} (${(grandTotalSec / 3600).toFixed(2)}h)</strong>
+          ${grandBudgetSec > 0 ? `<span class="badge b-budgeted" style="margin-left:6px;">🔮 ${(grandBudgetSec / 3600).toFixed(2)}h budgeted</span>` : ''}
         </div>
       </div>
       ${rows.length === 0 ? `<div class="empty-state" style="padding:22px 16px;">No time logged for this week${projFilter ? ' and project' : ''}.</div>` : `
@@ -7195,12 +7407,19 @@ function renderTimeWeeklySummary(weekInfo, projFilter) {
             <tbody>
               ${rows.map(r => `
                 <tr>
-                  <td><strong>📁 ${esc(r.name)}</strong></td>
+                  <td>
+                    <strong>📁 ${esc(r.name)}</strong>
+                    ${r.budgetSec > 0 ? ` <span class="badge b-budgeted" style="font-size:0.66rem;" title="Includes ${(r.budgetSec / 3600).toFixed(2)}h budgeted">🔮 ${(r.budgetSec / 3600).toFixed(2)}h bud</span>` : ''}
+                  </td>
                   ${weekInfo.dates.map(d => {
                     const cell = r.days[d.dateStr];
-                    const hasVal = cell && cell.sec > 0;
-                    const tip = hasVal ? `${r.name} on ${d.dateStr}: ${formatDuration(cell.sec)} (Billable: ${(cell.billSec / 3600).toFixed(2)}h)` : '';
-                    return `<td class="${d.dateStr === today ? 'is-today-col' : ''}" title="${esc(tip)}">${hasVal ? `${(cell.sec / 3600).toFixed(2)}h` : '<span style="color:var(--text-muted);opacity:0.45;">—</span>'}</td>`;
+                    const hasVal = cell && cell.sec !== 0;
+                    const hasBud = cell && cell.budgetSec > 0;
+                    const actPart = cell ? (cell.sec - cell.budgetSec) : 0;
+                    const tip = hasVal
+                      ? `${r.name} on ${d.dateStr}: ${formatDuration(cell.sec)} (Actual/Adj: ${(actPart / 3600).toFixed(2)}h, Budgeted: ${(cell.budgetSec / 3600).toFixed(2)}h, Billable: ${(cell.billSec / 3600).toFixed(2)}h)`
+                      : '';
+                    return `<td class="${d.dateStr === today ? 'is-today-col' : ''}" title="${esc(tip)}">${hasVal ? `<span class="${hasBud ? 'tt-cell-has-budget' : ''}">${(cell.sec / 3600).toFixed(2)}h</span>` : '<span style="color:var(--text-muted);opacity:0.45;">—</span>'}</td>`;
                   }).join('')}
                   <td class="tt-row-total" title="${esc(r.name)}: ${formatDuration(r.totalSec)}">${(r.totalSec / 3600).toFixed(2)}h</td>
                 </tr>
@@ -7209,7 +7428,8 @@ function renderTimeWeeklySummary(weekInfo, projFilter) {
                 <td>Daily Total</td>
                 ${weekInfo.dates.map(d => {
                   const sec = dayTotals[d.dateStr] || 0;
-                  return `<td class="${d.dateStr === today ? 'is-today-col' : ''}" title="${d.dateStr}: ${formatDuration(sec)}">${sec > 0 ? `${(sec / 3600).toFixed(2)}h` : '<span style="opacity:0.45;">—</span>'}</td>`;
+                  const bSec = dayBudgetTotals[d.dateStr] || 0;
+                  return `<td class="${d.dateStr === today ? 'is-today-col' : ''}" title="${d.dateStr}: ${formatDuration(sec)}${bSec > 0 ? ` (incl. ${(bSec/3600).toFixed(2)}h budgeted)` : ''}">${sec !== 0 ? `<span class="${bSec > 0 ? 'tt-cell-has-budget' : ''}">${(sec / 3600).toFixed(2)}h</span>` : '<span style="opacity:0.45;">—</span>'}</td>`;
                 }).join('')}
                 <td class="tt-row-total" title="Week Grand Total: ${formatDuration(grandTotalSec)}">${(grandTotalSec / 3600).toFixed(2)}h</td>
               </tr>
@@ -7217,6 +7437,52 @@ function renderTimeWeeklySummary(weekInfo, projFilter) {
           </table>
         </div>
       `}
+    </div>
+  `;
+}
+
+function renderUnreconciledBudgetsBanner() {
+  const today = todayStr();
+  const unreconciled = state.timeEntries
+    .filter(e => getTimeEntryType(e) === 'budgeted' && !e.reconciled)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  if (unreconciled.length === 0) return '';
+
+  const pastOrToday = unreconciled.filter(e => getEffectiveTimeEntryDate(e.date) <= today);
+  const upcoming = unreconciled.filter(e => getEffectiveTimeEntryDate(e.date) > today);
+
+  return `
+    <div class="reconcile-banner">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <strong style="font-size:0.9rem;color:var(--budgeted);">🔮 Month-End Budgeted Timesheet Entries (${unreconciled.length} awaiting variance check)</strong>
+          <div class="field-hint" style="margin-top:2px;">
+            ${pastOrToday.length > 0
+              ? `At the start of the new month (or once the budgeted day has passed), reconcile actual hours worked so any variance is logged as an adjustment next month without altering last month's submitted report.`
+              : `Scheduled for upcoming month-end days. Once completed, click Reconcile to record any variance adjustment in next month.`}
+          </div>
+        </div>
+      </div>
+      ${unreconciled.map(e => {
+        const proj = getProject(e.projectId);
+        const task = getTask(e.taskId);
+        const sub = (task && e.subtaskId) ? (task.subtasks || []).find(s => s.id === e.subtaskId) : null;
+        const hrs = ((e.durationSeconds || 0) / 3600).toFixed(2);
+        return `
+          <div class="reconcile-item-row">
+            <div>
+              <strong>${esc(e.date)}</strong> • <strong>${esc(proj ? proj.name : 'Project')}</strong> — ${esc(task ? task.title : 'Task')}${sub ? ` › ${esc(sub.title)}` : ''}
+              <span class="badge b-budgeted" style="margin-left:6px;">${hrs}h budgeted</span>
+              ${e.note ? `<span style="color:var(--text-muted);font-size:0.78rem;margin-left:6px;">(${esc(e.note)})</span>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-xs btn-success" onclick="confirmExactBudgetMatch('${e.id}')" title="Confirm you worked the exact budgeted ${hrs}h (0 variance)">✓ Exact (${hrs}h)</button>
+              <button type="button" class="btn btn-xs btn-primary" onclick="openReconcileBudgetModal('${e.id}')" title="Enter actual hours worked and post variance adjustment to next month">⚖️ Adjust Variance</button>
+            </div>
+          </div>
+        `;
+      }).join('')}
     </div>
   `;
 }
@@ -7231,6 +7497,7 @@ function renderTimeTracker(el) {
     : ((mode === 'month' || mode === 'custom') && today >= bounds.start && today <= bounds.end ? today : bounds.start);
   const weekInfo = getTimeTrackerWeekInfoForDate(summaryRefDate);
   const projFilter = state.ui.timeProjectId || '';
+  const typeFilter = state.ui.timeEntryType || '';
   const groupBy = state.ui.timeGroupBy || 'none';
 
   const entries = state.timeEntries
@@ -7238,6 +7505,7 @@ function renderTimeTracker(el) {
     .filter(e => {
       if (e.effectiveDate < bounds.start || e.effectiveDate > bounds.end) return false;
       if (projFilter && e.projectId !== projFilter) return false;
+      if (typeFilter && getTimeEntryType(e) !== typeFilter) return false;
       return true;
     })
     .sort((a, b) => (b.effectiveDate || '').localeCompare(a.effectiveDate || ''));
@@ -7245,6 +7513,7 @@ function renderTimeTracker(el) {
   const totalSec = entries.reduce((s, e) => s + (e.durationSeconds || 0), 0);
   const billSec = entries.filter(e => e.billable).reduce((s, e) => s + (e.durationSeconds || 0), 0);
   const nonBillSec = totalSec - billSec;
+  const budgetedSec = entries.filter(e => getTimeEntryType(e) === 'budgeted').reduce((s, e) => s + (e.durationSeconds || 0), 0);
 
   const rangeHint = mode === 'all'
     ? 'All recorded dates'
@@ -7277,12 +7546,13 @@ function renderTimeTracker(el) {
         label = `📆 ${mb.label}`;
       }
       if (!groupsMap.has(key)) {
-        groupsMap.set(key, { key, label, items: [], totalSec: 0, billSec: 0 });
+        groupsMap.set(key, { key, label, items: [], totalSec: 0, billSec: 0, budgetSec: 0 });
       }
       const grp = groupsMap.get(key);
       grp.items.push(entry);
       grp.totalSec += (entry.durationSeconds || 0);
       if (entry.billable) grp.billSec += (entry.durationSeconds || 0);
+      if (getTimeEntryType(entry) === 'budgeted') grp.budgetSec += (entry.durationSeconds || 0);
     });
 
     const groups = Array.from(groupsMap.values());
@@ -7300,8 +7570,9 @@ function renderTimeTracker(el) {
             <strong>${esc(g.label)}</strong>
             <div class="time-group-meta">
               <span class="badge b-todo">${g.items.length} ${g.items.length === 1 ? 'entry' : 'entries'}</span>
+              ${g.budgetSec > 0 ? `<span class="badge b-budgeted">🔮 Budgeted: ${(g.budgetSec / 3600).toFixed(2)}h</span>` : ''}
               <span class="badge b-billable">Billable: ${(g.billSec / 3600).toFixed(2)}h</span>
-              ${gNonBill > 0 ? `<span class="badge b-nonbillable">Non-billable: ${(gNonBill / 3600).toFixed(2)}h</span>` : ''}
+              ${gNonBill !== 0 ? `<span class="badge b-nonbillable">Non-billable: ${(gNonBill / 3600).toFixed(2)}h</span>` : ''}
               <strong style="color:var(--text);">Total: ${formatDuration(g.totalSec)} (${(g.totalSec / 3600).toFixed(2)}h)</strong>
             </div>
           </div>
@@ -7313,9 +7584,14 @@ function renderTimeTracker(el) {
 
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-      <p class="helper-banner" style="margin:0;">Start a live timer on any task or subtask, or log time manually when you forget to start the timer.</p>
-      <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
+      <p class="helper-banner" style="margin:0;">Start a live timer, log actual time, or capture <strong>Budgeted</strong> hours for month-end timesheet submissions.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" style="border-color:var(--budgeted);color:var(--budgeted);" onclick="openMonthEndBudgetModal()" title="Quickly plan budgeted hours across remaining weekdays of the month">🔮 Plan Month-End Budget</button>
+        <button class="btn btn-primary" onclick="openTimeEntryModal()">+ Add Manual Time Entry</button>
+      </div>
     </div>
+
+    ${renderUnreconciledBudgetsBanner()}
 
     <div class="card" style="margin-bottom:16px;padding:12px 14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -7339,6 +7615,12 @@ function renderTimeTracker(el) {
         </div>
 
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select style="width:auto;min-width:140px;padding:6px 9px;font-size:0.82rem;" onchange="state.ui.timeEntryType=this.value;render()" title="Filter by Actual vs Budgeted vs Adjustments">
+            <option value="" ${!typeFilter ? 'selected' : ''}>All Types</option>
+            <option value="actual" ${typeFilter === 'actual' ? 'selected' : ''}>⏱️ Actual Only</option>
+            <option value="budgeted" ${typeFilter === 'budgeted' ? 'selected' : ''}>🔮 Budgeted Only</option>
+            <option value="adjustment" ${typeFilter === 'adjustment' ? 'selected' : ''}>⚖️ Variance Adj Only</option>
+          </select>
           <select style="width:auto;min-width:160px;max-width:230px;padding:6px 9px;font-size:0.82rem;" onchange="state.ui.timeProjectId=this.value;render()" title="Filter time entries by Project">
             <option value="">All Projects</option>
             ${state.projects.map(p => `<option value="${p.id}" ${projFilter === p.id ? 'selected' : ''}>📁 ${esc(p.name)}</option>`).join('')}
@@ -7350,17 +7632,18 @@ function renderTimeTracker(el) {
             <option value="week" ${groupBy === 'week' ? 'selected' : ''}>Group by: Week</option>
             <option value="month" ${groupBy === 'month' ? 'selected' : ''}>Group by: Month</option>
           </select>
-          ${(projFilter || groupBy !== 'none' || mode !== 'today' || timeOffset !== 0) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeOffset=0;state.ui.timeProjectId='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
+          ${(projFilter || typeFilter || groupBy !== 'none' || mode !== 'today' || timeOffset !== 0) ? `<button type="button" class="btn btn-xs btn-ghost" onclick="state.ui.timeRange='today';state.ui.timeOffset=0;state.ui.timeProjectId='';state.ui.timeEntryType='';state.ui.timeGroupBy='none';render()">Reset</button>` : ''}
         </div>
       </div>
     </div>
 
-    ${renderTimeWeeklySummary(weekInfo, projFilter)}
+    ${renderTimeWeeklySummary(weekInfo, projFilter, typeFilter)}
 
     <div class="card">
       <div class="card-header">
         <div class="card-title">Logged Time Entries (${entries.length})</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:0.8rem;">
+          ${budgetedSec > 0 ? `<span class="badge b-budgeted">🔮 Budgeted: ${(budgetedSec / 3600).toFixed(2)}h</span>` : ''}
           <span class="badge b-billable">Billable: ${(billSec / 3600).toFixed(2)}h</span>
           <span class="badge b-nonbillable">Non-billable: ${(nonBillSec / 3600).toFixed(2)}h</span>
           <strong>Total: ${formatDuration(totalSec)} (${(totalSec / 3600).toFixed(2)}h)</strong>
@@ -7371,15 +7654,19 @@ function renderTimeTracker(el) {
   `;
 }
 
-function openTimeEntryModal(entryId = null) {
+function openTimeEntryModal(entryId = null, defaultType = 'actual') {
   if (state.tasks.length === 0) {
     alert('Create a task first before logging time.');
     return;
   }
   const e = entryId ? state.timeEntries.find(x => x.id === entryId) : null;
-  const hrs = e ? Math.floor((e.durationSeconds || 0) / 3600) : 0;
-  const mins = e ? Math.round(((e.durationSeconds || 0) % 3600) / 60) : 30;
+  const rawSec = e ? (e.durationSeconds || 0) : 1800;
+  const isNeg = rawSec < 0;
+  const absSec = Math.abs(rawSec);
+  const hrs = e ? Math.floor(absSec / 3600) : 0;
+  const mins = e ? Math.round((absSec % 3600) / 60) : 30;
   const defaultTaskId = e ? e.taskId : state.tasks[0].id;
+  const currentType = e ? getTimeEntryType(e) : (defaultType || 'actual');
 
   openModal(`
     <div class="modal-header">
@@ -7387,6 +7674,23 @@ function openTimeEntryModal(entryId = null) {
       <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
     </div>
     <form onsubmit="saveTimeEntryForm(event, '${e ? e.id : ''}')">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Entry Type *</label>
+          <select id="teEntryType" onchange="onTimeEntryTypeChange(this.value)">
+            <option value="actual" ${currentType === 'actual' ? 'selected' : ''}>⏱️ Actual Time</option>
+            <option value="budgeted" ${currentType === 'budgeted' ? 'selected' : ''}>🔮 Budgeted (Month-End Timesheet)</option>
+            ${currentType === 'adjustment' ? `<option value="adjustment" selected>⚖️ Variance Adjustment (Next Month)</option>` : ''}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="teDate" required value="${esc(e?.date || todayStr())}" />
+        </div>
+      </div>
+      <div id="teBudgetHint" class="field-hint" style="margin:-6px 0 12px;padding:7px 10px;border-radius:7px;background:var(--budgeted-soft);color:var(--budgeted);display:${currentType === 'budgeted' ? 'block' : 'none'};">
+        🔮 <strong>Budgeted mode:</strong> Appears under the same project in Reports in violet, and can be reconciled at the start of next month if actual hours differ.
+      </div>
       <div class="form-group">
         <label>Task *</label>
         <select id="teTask" required onchange="onTimeTaskChange(this.value)">
@@ -7402,20 +7706,6 @@ function openTimeEntryModal(entryId = null) {
           <select id="teSubtask"></select>
         </div>
         <div class="form-group">
-          <label>Date *</label>
-          <input type="date" id="teDate" required value="${esc(e?.date || todayStr())}" />
-        </div>
-      </div>
-      <div class="form-row-3">
-        <div class="form-group">
-          <label>Hours</label>
-          <input type="number" id="teHours" min="0" value="${hrs}" />
-        </div>
-        <div class="form-group">
-          <label>Minutes</label>
-          <input type="number" id="teMins" min="0" max="59" value="${mins}" />
-        </div>
-        <div class="form-group">
           <label>Billable?</label>
           <select id="teBillable">
             <option value="true" ${e?.billable ? 'selected' : ''}>Billable</option>
@@ -7423,9 +7713,20 @@ function openTimeEntryModal(entryId = null) {
           </select>
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>${isNeg ? 'Hours (Negative Adjustment)' : 'Hours'}</label>
+          <input type="number" id="teHours" min="0" value="${hrs}" />
+        </div>
+        <div class="form-group">
+          <label>${isNeg ? 'Minutes (Negative Adjustment)' : 'Minutes'}</label>
+          <input type="number" id="teMins" min="0" max="59" value="${mins}" />
+        </div>
+      </div>
+      <input type="hidden" id="teSign" value="${isNeg ? '-1' : '1'}" />
       <div class="form-group">
-        <label>Note</label>
-        <input type="text" id="teNote" value="${esc(e?.note || '')}" placeholder="What did you work on?" />
+        <label>Note / Planned Work Description</label>
+        <input type="text" id="teNote" value="${esc(e?.note || '')}" placeholder="What did you work on (or plan to work on for budgeted)?" />
       </div>
       <div class="modal-footer">
         <button type="button" class="btn" onclick="closeModal()">Cancel</button>
@@ -7434,6 +7735,11 @@ function openTimeEntryModal(entryId = null) {
     </form>
   `);
   onTimeTaskChange(defaultTaskId, e?.subtaskId || '', e ? e.billable : null);
+}
+
+function onTimeEntryTypeChange(val) {
+  const hint = document.getElementById('teBudgetHint');
+  if (hint) hint.style.display = val === 'budgeted' ? 'block' : 'none';
 }
 
 function onTimeTaskChange(taskId, selectedSubId = '', forceBillable = null) {
@@ -7456,17 +7762,21 @@ function saveTimeEntryForm(ev, entryId) {
   const taskId = document.getElementById('teTask').value;
   const subtaskId = document.getElementById('teSubtask').value || null;
   const task = getTask(taskId);
+  const entryType = document.getElementById('teEntryType')?.value || 'actual';
+  const sign = Number(document.getElementById('teSign')?.value || 1) < 0 ? -1 : 1;
   const hrs = Number(document.getElementById('teHours').value || 0);
   const mins = Number(document.getElementById('teMins').value || 0);
-  const totalSec = Math.round(hrs * 3600 + mins * 60);
-  if (totalSec <= 0) {
+  const absSec = Math.round(hrs * 3600 + mins * 60);
+  if (absSec <= 0) {
     alert('Please enter a duration greater than 0.');
     return;
   }
+  const totalSec = sign * absSec;
   const payload = {
     projectId: task ? task.projectId : '',
     taskId,
     subtaskId,
+    entryType,
     billable: document.getElementById('teBillable').value === 'true',
     date: getEffectiveTimeEntryDate(document.getElementById('teDate').value),
     durationSeconds: totalSec,
@@ -7478,8 +7788,12 @@ function saveTimeEntryForm(ev, entryId) {
     Object.assign(existing, payload);
     showToast('Time entry updated');
   } else {
-    state.timeEntries.unshift({ id: uid('time'), ...payload });
-    showToast('Time entry added');
+    state.timeEntries.unshift({
+      id: uid('time'),
+      ...(entryType === 'budgeted' ? { reconciled: false } : {}),
+      ...payload
+    });
+    showToast(entryType === 'budgeted' ? '🔮 Budgeted entry added' : 'Time entry added');
   }
   saveState();
   closeModal();
@@ -7492,6 +7806,284 @@ function deleteTimeEntry(id) {
   saveState();
   render();
   showToast('Time entry deleted');
+}
+
+// Month-End Budget Planner (Quick Multi-Day Entry)
+let tempBudgetRows = [];
+
+function getDefaultTaskForProject(projectId) {
+  return state.tasks.find(t => t.projectId === projectId && !isCalendarContainerTask(t) && t.status !== 'Done')
+    || state.tasks.find(t => t.projectId === projectId && !isCalendarContainerTask(t))
+    || state.tasks.find(t => t.projectId === projectId)
+    || state.tasks[0]
+    || null;
+}
+
+function openMonthEndBudgetModal() {
+  if (state.tasks.length === 0) {
+    alert('Create a project and at least one task first before planning budgeted time.');
+    return;
+  }
+  const today = todayStr();
+  const remWeekdays = getRemainingMonthWeekdays(today);
+  const defProj = getDefaultProject();
+  const defProjId = defProj ? defProj.id : (state.projects[0]?.id || '');
+  const defTask = getDefaultTaskForProject(defProjId);
+
+  const seedDates = remWeekdays.length > 0 ? remWeekdays : [getEffectiveTimeEntryDate(today)];
+  tempBudgetRows = seedDates.map(dStr => ({
+    date: dStr,
+    projectId: defTask ? defTask.projectId : defProjId,
+    taskId: defTask ? defTask.id : state.tasks[0].id,
+    hours: 8,
+    billable: defTask ? isTaskBillable(defTask) : true,
+    note: 'Month-end budgeted'
+  }));
+
+  openModal(`
+    <div class="modal-header">
+      <h3>🔮 Plan Month-End Budgeted Timesheet</h3>
+      <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
+    </div>
+    <p class="field-hint" style="margin-bottom:12px;">
+      Pre-filled with remaining weekday(s) in this month (<strong>${seedDates.length} day${seedDates.length === 1 ? '' : 's'}</strong>).
+      Entries are saved under the selected project with <strong>Budgeted</strong> status so they appear in a distinct violet color in Reports and can be reconciled at the start of next month.
+    </p>
+    <form onsubmit="saveMonthEndBudgetForm(event)">
+      <div id="monthEndBudgetRows"></div>
+      <div style="margin:8px 0 12px;">
+        <button type="button" class="btn btn-xs" onclick="addMonthEndBudgetRow()">+ Add Another Day / Split Project</button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">🔮 Save Budgeted Entries</button>
+      </div>
+    </form>
+  `, { wideContent: true });
+
+  renderMonthEndBudgetRows();
+}
+
+function addMonthEndBudgetRow() {
+  const last = tempBudgetRows[tempBudgetRows.length - 1];
+  const defTask = last ? getTask(last.taskId) : (getDefaultTaskForProject(getDefaultProject()?.id || '') || state.tasks[0]);
+  tempBudgetRows.push({
+    date: last ? last.date : getEffectiveTimeEntryDate(todayStr()),
+    projectId: defTask ? defTask.projectId : '',
+    taskId: defTask ? defTask.id : '',
+    hours: 4,
+    billable: defTask ? isTaskBillable(defTask) : true,
+    note: 'Month-end budgeted'
+  });
+  renderMonthEndBudgetRows();
+}
+
+function removeMonthEndBudgetRow(idx) {
+  if (tempBudgetRows.length <= 1) return;
+  tempBudgetRows.splice(idx, 1);
+  renderMonthEndBudgetRows();
+}
+
+function onBudgetRowProjectChange(idx, newProjId) {
+  const row = tempBudgetRows[idx];
+  if (!row) return;
+  row.projectId = newProjId;
+  const t = getDefaultTaskForProject(newProjId);
+  row.taskId = t ? t.id : (state.tasks[0]?.id || '');
+  row.billable = t ? isTaskBillable(t) : Boolean(getProject(newProjId)?.billable);
+  renderMonthEndBudgetRows();
+}
+
+function onBudgetRowTaskChange(idx, newTaskId) {
+  const row = tempBudgetRows[idx];
+  if (!row) return;
+  row.taskId = newTaskId;
+  const t = getTask(newTaskId);
+  if (t) {
+    row.projectId = t.projectId;
+    row.billable = isTaskBillable(t);
+  }
+  renderMonthEndBudgetRows();
+}
+
+function renderMonthEndBudgetRows() {
+  const wrap = document.getElementById('monthEndBudgetRows');
+  if (!wrap) return;
+  wrap.innerHTML = tempBudgetRows.map((r, i) => {
+    const projTasks = state.tasks.filter(t => t.projectId === r.projectId);
+    const taskOptions = projTasks.length > 0 ? projTasks : state.tasks;
+    return `
+      <div style="display:grid;grid-template-columns:135px minmax(150px,1fr) minmax(190px,1.3fr) 82px 105px minmax(140px,1fr) auto;gap:7px;align-items:center;margin-bottom:8px;padding:8px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);">
+        <input type="date" value="${esc(r.date)}" onchange="tempBudgetRows[${i}].date=this.value" title="Date" required />
+        <select onchange="onBudgetRowProjectChange(${i}, this.value)" title="Project">
+          ${state.projects.filter(p => !p.archived || p.id === r.projectId).map(p => `<option value="${p.id}" ${p.id === r.projectId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+        </select>
+        <select onchange="onBudgetRowTaskChange(${i}, this.value)" title="Task">
+          ${taskOptions.map(t => `<option value="${t.id}" ${t.id === r.taskId ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}
+        </select>
+        <input type="number" min="0.25" max="24" step="0.25" value="${r.hours}" oninput="tempBudgetRows[${i}].hours=Number(this.value||0)" placeholder="Hours" title="Budgeted Hours" required />
+        <select onchange="tempBudgetRows[${i}].billable=(this.value==='true')" title="Billable">
+          <option value="true" ${r.billable ? 'selected' : ''}>Billable</option>
+          <option value="false" ${!r.billable ? 'selected' : ''}>Non-billable</option>
+        </select>
+        <input type="text" value="${esc(r.note)}" oninput="tempBudgetRows[${i}].note=this.value" placeholder="Planned work note" />
+        <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="removeMonthEndBudgetRow(${i})" ${tempBudgetRows.length <= 1 ? 'disabled' : ''} title="Remove row">✕</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function saveMonthEndBudgetForm(e) {
+  e.preventDefault();
+  let createdCount = 0;
+  tempBudgetRows.forEach(r => {
+    const secs = Math.round(Number(r.hours || 0) * 3600);
+    if (secs <= 0 || !r.taskId) return;
+    const task = getTask(r.taskId);
+    state.timeEntries.unshift({
+      id: uid('time'),
+      projectId: task ? task.projectId : r.projectId,
+      taskId: r.taskId,
+      subtaskId: null,
+      entryType: 'budgeted',
+      reconciled: false,
+      billable: Boolean(r.billable),
+      date: getEffectiveTimeEntryDate(r.date || todayStr()),
+      durationSeconds: secs,
+      note: (r.note || '').trim() || 'Month-end budgeted'
+    });
+    createdCount++;
+  });
+  if (createdCount === 0) {
+    alert('Please enter at least one row with hours greater than 0.');
+    return;
+  }
+  saveState();
+  closeModal();
+  render();
+  showToast(`🔮 Added ${createdCount} budgeted entr${createdCount === 1 ? 'y' : 'ies'}`);
+}
+
+// Reconcile Variance at Start of Next Month
+function confirmExactBudgetMatch(entryId) {
+  const entry = state.timeEntries.find(x => x.id === entryId);
+  if (!entry) return;
+  entry.reconciled = true;
+  entry.reconciledActualSeconds = entry.durationSeconds;
+  entry.reconciledDate = todayStr();
+  saveState();
+  render();
+  showToast('✓ Confirmed exact budgeted hours (0 variance)');
+}
+
+function openReconcileBudgetModal(entryId) {
+  const entry = state.timeEntries.find(x => x.id === entryId);
+  if (!entry) return;
+  const proj = getProject(entry.projectId);
+  const task = getTask(entry.taskId);
+  const sub = (task && entry.subtaskId) ? (task.subtasks || []).find(s => s.id === entry.subtaskId) : null;
+  const budSec = Math.abs(entry.durationSeconds || 0);
+  const budH = Math.floor(budSec / 3600);
+  const budM = Math.round((budSec % 3600) / 60);
+  const nextMonthWorkday = getFirstWorkingDayOfNextMonth(entry.date);
+
+  openModal(`
+    <div class="modal-header">
+      <h3>⚖️ Reconcile Month-End Budget Variance</h3>
+      <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
+    </div>
+    <div style="padding:10px 12px;border-radius:8px;background:var(--budgeted-soft);border:1px solid var(--budgeted);margin-bottom:14px;font-size:0.85rem;">
+      <div><strong>Submitted Budgeted Entry:</strong> ${esc(entry.date)} • <strong>${esc(proj ? proj.name : 'Project')}</strong></div>
+      <div style="margin-top:3px;">Task: <strong>${esc(task ? task.title : 'Task')}${sub ? ` › ${esc(sub.title)}` : ''}</strong> • Budgeted: <strong>${formatDuration(budSec)} (${(budSec / 3600).toFixed(2)}h)</strong></div>
+    </div>
+    <form onsubmit="executeReconcileBudget(event, '${entry.id}')">
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>Actual Hours Worked *</label>
+          <input type="number" id="recActHours" min="0" max="24" value="${budH}" oninput="updateReconcilePreview(${budSec})" required />
+        </div>
+        <div class="form-group">
+          <label>Actual Minutes *</label>
+          <input type="number" id="recActMins" min="0" max="59" value="${budM}" oninput="updateReconcilePreview(${budSec})" required />
+        </div>
+        <div class="form-group">
+          <label>Adjustment Date (Next Month) *</label>
+          <input type="date" id="recAdjDate" value="${esc(nextMonthWorkday)}" required />
+        </div>
+      </div>
+
+      <div id="recVariancePreview" style="padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px;font-size:0.86rem;"></div>
+
+      <div class="form-group">
+        <label>Adjustment Note</label>
+        <input type="text" id="recAdjNote" value="" placeholder="Auto-generated variance note (or customize here)" />
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">✓ Save Variance Adjustment</button>
+      </div>
+    </form>
+  `);
+  updateReconcilePreview(budSec);
+}
+
+function updateReconcilePreview(budSec) {
+  const prev = document.getElementById('recVariancePreview');
+  if (!prev) return;
+  const h = Number(document.getElementById('recActHours')?.value || 0);
+  const m = Number(document.getElementById('recActMins')?.value || 0);
+  const actSec = Math.round(h * 3600 + m * 60);
+  const diffSec = actSec - budSec;
+  const diffHrs = (diffSec / 3600).toFixed(2);
+  if (diffSec === 0) {
+    prev.innerHTML = `<span style="color:var(--success);font-weight:700;">✓ Exact Match (0.00h variance):</span> Marks budgeted entry reconciled with no adjustment needed.`;
+  } else if (diffSec > 0) {
+    prev.innerHTML = `<span style="color:var(--info);font-weight:700;">➕ Under-budgeted by +${formatDuration(diffSec)} (+${diffHrs}h):</span> Logs a <strong>+${diffHrs}h Variance Adjustment</strong> entry on the selected next-month date under the same project.`;
+  } else {
+    prev.innerHTML = `<span style="color:var(--danger);font-weight:700;">➖ Over-budgeted by ${formatDuration(diffSec)} (${diffHrs}h):</span> Logs a <strong>${diffHrs}h Variance Adjustment</strong> entry on the selected next-month date under the same project.`;
+  }
+}
+
+function executeReconcileBudget(e, entryId) {
+  e.preventDefault();
+  const entry = state.timeEntries.find(x => x.id === entryId);
+  if (!entry) return;
+  const budSec = Math.abs(entry.durationSeconds || 0);
+  const h = Number(document.getElementById('recActHours')?.value || 0);
+  const m = Number(document.getElementById('recActMins')?.value || 0);
+  const actSec = Math.round(h * 3600 + m * 60);
+  const diffSec = actSec - budSec;
+  const adjDate = getEffectiveTimeEntryDate(document.getElementById('recAdjDate')?.value || getFirstWorkingDayOfNextMonth(entry.date));
+  const customNote = (document.getElementById('recAdjNote')?.value || '').trim();
+
+  entry.reconciled = true;
+  entry.reconciledActualSeconds = actSec;
+  entry.reconciledDate = adjDate;
+
+  if (diffSec !== 0) {
+    const signStr = diffSec > 0 ? '+' : '';
+    const autoNote = `Variance true-up for ${entry.date} (${(budSec / 3600).toFixed(2)}h budgeted vs ${(actSec / 3600).toFixed(2)}h actual; ${signStr}${(diffSec / 3600).toFixed(2)}h)`;
+    state.timeEntries.unshift({
+      id: uid('time'),
+      projectId: entry.projectId,
+      taskId: entry.taskId,
+      subtaskId: entry.subtaskId || null,
+      entryType: 'adjustment',
+      sourceBudgetId: entry.id,
+      billable: entry.billable,
+      date: adjDate,
+      durationSeconds: diffSec,
+      note: customNote || autoNote
+    });
+    showToast(`⚖️ Logged ${signStr}${(diffSec / 3600).toFixed(2)}h variance adjustment on ${adjDate}`);
+  } else {
+    showToast('✓ Budgeted entry reconciled (0.00h variance)');
+  }
+
+  saveState();
+  closeModal();
+  render();
 }
 
 function openQuickLogActualModal(taskId, subtaskId = null) {
@@ -7679,41 +8271,70 @@ function renderReports(el) {
   const entries = state.timeEntries.map(e => ({ ...e, date: getEffectiveTimeEntryDate(e.date) })).filter(e => e.date >= bounds.start && e.date <= bounds.end);
 
   const totalSec = entries.reduce((s, e) => s + (e.durationSeconds || 0), 0);
+  const budgetedSec = entries.filter(e => getTimeEntryType(e) === 'budgeted').reduce((s, e) => s + (e.durationSeconds || 0), 0);
+  const actualAndAdjSec = totalSec - budgetedSec;
+
   const billableSec = entries.filter(e => e.billable).reduce((s, e) => s + (e.durationSeconds || 0), 0);
+  const billableBudgetSec = entries.filter(e => e.billable && getTimeEntryType(e) === 'budgeted').reduce((s, e) => s + (e.durationSeconds || 0), 0);
   const nonBillableSec = totalSec - billableSec;
+  const nonBillableBudgetSec = budgetedSec - billableBudgetSec;
   const billPct = totalSec > 0 ? Math.round((billableSec / totalSec) * 100) : 0;
 
-  // By Project & earnings
+  // By Project & earnings (Actual + Budgeted combined under the same project)
   const byProject = {};
   let totalEarned = 0;
+  let totalBudgetEarned = 0;
   entries.forEach(e => {
     const p = getProject(e.projectId);
     const key = e.projectId || 'unknown';
     if (!byProject[key]) {
-      byProject[key] = { name: p ? p.name : 'Unknown Project', sec: 0, billSec: 0, rate: p && p.billable ? Number(p.hourlyRate || 0) : 0 };
+      byProject[key] = {
+        name: p ? p.name : 'Unknown Project',
+        sec: 0,
+        actualSec: 0,
+        budgetSec: 0,
+        billSec: 0,
+        billBudgetSec: 0,
+        rate: p && p.billable ? Number(p.hourlyRate || 0) : 0
+      };
     }
-    byProject[key].sec += (e.durationSeconds || 0);
-    if (e.billable) byProject[key].billSec += (e.durationSeconds || 0);
+    const dur = e.durationSeconds || 0;
+    const isBud = getTimeEntryType(e) === 'budgeted';
+    byProject[key].sec += dur;
+    if (isBud) byProject[key].budgetSec += dur;
+    else byProject[key].actualSec += dur;
+    if (e.billable) {
+      byProject[key].billSec += dur;
+      if (isBud) byProject[key].billBudgetSec += dur;
+    }
   });
   const projRows = Object.values(byProject).map(r => {
     const earned = (r.billSec / 3600) * r.rate;
+    const budgetEarned = (r.billBudgetSec / 3600) * r.rate;
     totalEarned += earned;
-    return { ...r, earned };
+    totalBudgetEarned += budgetEarned;
+    return { ...r, earned, budgetEarned };
   }).sort((a, b) => b.sec - a.sec);
 
-  // By Day (split into Billable & Non-billable)
+  // By Day (split into Billable Actual, Non-billable Actual, and Budgeted)
   const byDay = {};
   entries.forEach(e => {
-    if (!byDay[e.date]) byDay[e.date] = { total: 0, billable: 0, nonBillable: 0 };
+    if (!byDay[e.date]) byDay[e.date] = { total: 0, billable: 0, nonBillable: 0, budgeted: 0 };
     const dur = e.durationSeconds || 0;
+    const isBud = getTimeEntryType(e) === 'budgeted';
     byDay[e.date].total += dur;
-    if (e.billable) byDay[e.date].billable += dur;
-    else byDay[e.date].nonBillable += dur;
+    if (isBud) {
+      byDay[e.date].budgeted += dur;
+    } else if (e.billable) {
+      byDay[e.date].billable += dur;
+    } else {
+      byDay[e.date].nonBillable += dur;
+    }
   });
   const dayRows = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
   const DAY_GUIDE_HOURS = 8;
   const DAY_GUIDE_SEC = DAY_GUIDE_HOURS * 3600;
-  const maxDaySec = Math.max(DAY_GUIDE_SEC, ...dayRows.map(d => d[1].total));
+  const maxDaySec = Math.max(DAY_GUIDE_SEC, ...dayRows.map(d => Math.max(0, d[1].billable) + Math.max(0, d[1].nonBillable) + Math.max(0, d[1].budgeted)));
 
   // Planned vs Actual for tasks & subtasks within date bounds
   const pvaRows = [];
@@ -7749,7 +8370,7 @@ function renderReports(el) {
   // Donut SVG math
   const r = 46;
   const circ = 2 * Math.PI * r;
-  const billDash = totalSec > 0 ? (billableSec / totalSec) * circ : 0;
+  const billDash = totalSec > 0 ? Math.max(0, (billableSec / totalSec) * circ) : 0;
 
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;" class="no-print">
@@ -7781,22 +8402,22 @@ function renderReports(el) {
       <div class="kpi-card">
         <div class="kpi-label">Total Hours</div>
         <div class="kpi-value">${(totalSec / 3600).toFixed(2)}h</div>
-        <div class="kpi-sub">${entries.length} time entries</div>
+        <div class="kpi-sub">${budgetedSec > 0 ? `${(actualAndAdjSec / 3600).toFixed(2)}h actual • <span style="color:var(--budgeted);font-weight:700;">${(budgetedSec / 3600).toFixed(2)}h budgeted</span>` : `${entries.length} time entries`}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Billable Hours</div>
         <div class="kpi-value" style="color:var(--success)">${(billableSec / 3600).toFixed(2)}h</div>
-        <div class="kpi-sub">${billPct}% of total</div>
+        <div class="kpi-sub">${billPct}% of total${billableBudgetSec > 0 ? ` (incl. ${(billableBudgetSec / 3600).toFixed(2)}h budgeted)` : ''}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Non-billable Hours</div>
         <div class="kpi-value">${(nonBillableSec / 3600).toFixed(2)}h</div>
-        <div class="kpi-sub">${totalSec > 0 ? 100 - billPct : 0}% of total</div>
+        <div class="kpi-sub">${totalSec > 0 ? 100 - billPct : 0}% of total${nonBillableBudgetSec > 0 ? ` (incl. ${(nonBillableBudgetSec / 3600).toFixed(2)}h budgeted)` : ''}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Estimated Earned</div>
         <div class="kpi-value" style="color:var(--primary)">$${totalEarned.toFixed(2)}</div>
-        <div class="kpi-sub">From billable projects with rates</div>
+        <div class="kpi-sub">${totalBudgetEarned > 0 ? `Incl. $${totalBudgetEarned.toFixed(2)} from budgeted` : 'From billable projects with rates'}</div>
       </div>
     </div>
 
@@ -7812,7 +8433,8 @@ function renderReports(el) {
           </svg>
           <div style="font-size:0.88rem;">
             <div style="margin-bottom:8px;"><span style="color:var(--success);font-weight:700;">● Billable:</span> ${(billableSec/3600).toFixed(2)}h (${billPct}%)</div>
-            <div><span style="color:var(--text-muted);font-weight:700;">● Non-billable:</span> ${(nonBillableSec/3600).toFixed(2)}h (${totalSec > 0 ? 100 - billPct : 0}%)</div>
+            <div style="margin-bottom:8px;"><span style="color:var(--text-muted);font-weight:700;">● Non-billable:</span> ${(nonBillableSec/3600).toFixed(2)}h (${totalSec > 0 ? 100 - billPct : 0}%)</div>
+            ${budgetedSec > 0 ? `<div><span style="color:var(--budgeted);font-weight:700;">● Budgeted (Month-End):</span> ${(budgetedSec/3600).toFixed(2)}h</div>` : ''}
           </div>
         </div>
       </div>
@@ -7823,6 +8445,7 @@ function renderReports(el) {
           <div class="day-legend">
             <span><span class="day-legend-dot" style="background:var(--success)"></span>Billable</span>
             <span><span class="day-legend-dot" style="background:var(--text-muted);opacity:0.45"></span>Non-billable</span>
+            <span><span class="day-legend-dot" style="background:var(--budgeted)"></span>Budgeted</span>
             <span><span style="display:inline-block;width:12px;border-top:2px dashed var(--warning);vertical-align:middle;margin-right:4px;"></span>8.00h guide</span>
           </div>
         </div>
@@ -7837,14 +8460,21 @@ function renderReports(el) {
                   <span class="day-guide-label">8.00h</span>
                 </div>
                 ${dayRows.map(([date, d]) => {
-                  const barPx = Math.max(3, Math.round((d.total / maxDaySec) * PLOT_H));
-                  const billShare = d.total > 0 ? (d.billable / d.total) * 100 : 0;
-                  const nonBillShare = d.total > 0 ? (d.nonBillable / d.total) * 100 : 0;
+                  const posBill = Math.max(0, d.billable);
+                  const posNonBill = Math.max(0, d.nonBillable);
+                  const posBud = Math.max(0, d.budgeted);
+                  const stackSum = posBill + posNonBill + posBud;
+                  const barPx = stackSum > 0 ? Math.max(3, Math.round((stackSum / maxDaySec) * PLOT_H)) : 2;
+                  const billShare = stackSum > 0 ? (posBill / stackSum) * 100 : 0;
+                  const nonBillShare = stackSum > 0 ? (posNonBill / stackSum) * 100 : 0;
+                  const budShare = stackSum > 0 ? (posBud / stackSum) * 100 : 0;
+                  const budTip = d.budgeted > 0 ? `, Budgeted: ${(d.budgeted/3600).toFixed(2)}h` : '';
                   return `
-                    <div class="day-col" title="${date}: ${(d.total/3600).toFixed(2)}h total (Billable: ${(d.billable/3600).toFixed(2)}h, Non-billable: ${(d.nonBillable/3600).toFixed(2)}h)">
+                    <div class="day-col" title="${date}: ${(d.total/3600).toFixed(2)}h total (Billable: ${(d.billable/3600).toFixed(2)}h, Non-billable: ${(d.nonBillable/3600).toFixed(2)}h${budTip})">
                       <div class="day-bar-slot">
-                        <div class="day-val">${(d.total/3600).toFixed(2)}h</div>
+                        <div class="day-val" style="${d.budgeted > 0 ? 'color:var(--budgeted);' : ''}">${(d.total/3600).toFixed(2)}h</div>
                         <div class="day-bar" style="height:${barPx}px">
+                          ${budShare > 0 ? `<div class="day-bar-budget" style="height:${budShare.toFixed(2)}%"></div>` : ''}
                           ${nonBillShare > 0 ? `<div class="day-bar-nonbill" style="height:${nonBillShare.toFixed(2)}%"></div>` : ''}
                           ${billShare > 0 ? `<div class="day-bar-bill" style="height:${billShare.toFixed(2)}%"></div>` : ''}
                         </div>
@@ -7861,16 +8491,36 @@ function renderReports(el) {
     </div>
 
     <div class="card" style="margin-bottom:18px;">
-      <div class="card-header"><div class="card-title">Hours & Earnings by Project</div></div>
+      <div class="card-header">
+        <div class="card-title">Hours & Earnings by Project</div>
+        ${budgetedSec > 0 ? `
+          <div class="day-legend">
+            <span><span class="day-legend-dot" style="background:var(--primary)"></span>Actual / Adj</span>
+            <span><span class="day-legend-dot" style="background:var(--budgeted)"></span>Budgeted</span>
+          </div>
+        ` : ''}
+      </div>
       ${projRows.length === 0 ? `<div class="empty-state">No project hours in this range.</div>` : projRows.map(r => {
-        const pct = totalSec > 0 ? Math.round((r.sec / totalSec) * 100) : 0;
+        const posAct = Math.max(0, r.actualSec);
+        const posBud = Math.max(0, r.budgetSec);
+        const actPct = totalSec > 0 ? Math.min(100, (posAct / totalSec) * 100) : 0;
+        const budPct = totalSec > 0 ? Math.min(100 - actPct, (posBud / totalSec) * 100) : 0;
+        const breakdown = r.budgetSec > 0
+          ? ` <span style="font-size:0.78rem;color:var(--text-muted);">(${(r.actualSec/3600).toFixed(2)}h actual + <span style="color:var(--budgeted);font-weight:700;">${(r.budgetSec/3600).toFixed(2)}h budgeted</span>)</span>`
+          : '';
         return `
           <div class="bar-row">
             <div class="bar-row-top">
-              <strong>${esc(r.name)}</strong>
-              <span>${(r.sec/3600).toFixed(2)}h ${r.earned > 0 ? `• <strong style="color:var(--success)">$${r.earned.toFixed(2)}</strong>` : ''}</span>
+              <div>
+                <strong>${esc(r.name)}</strong>
+                ${r.budgetSec > 0 ? `<span class="badge b-budgeted" style="margin-left:6px;font-size:0.68rem;">🔮 Incl. Budgeted</span>` : ''}
+              </div>
+              <span><strong>${(r.sec/3600).toFixed(2)}h</strong>${breakdown} ${r.earned > 0 ? `• <strong style="color:var(--success)">$${r.earned.toFixed(2)}</strong>` : ''}</span>
             </div>
-            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+            <div class="bar-track-dual">
+              ${actPct > 0 ? `<div class="bar-fill" style="width:${actPct.toFixed(2)}%;border-radius:${budPct > 0 ? '999px 0 0 999px' : '999px'};"></div>` : ''}
+              ${budPct > 0 ? `<div class="bar-fill-budget" style="width:${budPct.toFixed(2)}%"></div>` : ''}
+            </div>
           </div>
         `;
       }).join('')}
@@ -7971,11 +8621,12 @@ function renderReports(el) {
 function exportReportCSV() {
   const bounds = getReportDateBounds();
   const entries = state.timeEntries.filter(e => e.date >= bounds.start && e.date <= bounds.end);
-  const rows = [['Date', 'Project', 'Task', 'Subtask', 'Billable', 'Hours', 'Hourly Rate', 'Estimated Earned', 'Note']];
+  const rows = [['Date', 'Project', 'Task', 'Subtask', 'Entry Type', 'Reconciled', 'Billable', 'Hours', 'Hourly Rate', 'Estimated Earned', 'Note']];
   entries.forEach(e => {
     const p = getProject(e.projectId);
     const t = getTask(e.taskId);
     const sub = (t && e.subtaskId) ? (t.subtasks || []).find(s => s.id === e.subtaskId) : null;
+    const eType = getTimeEntryType(e);
     const hrs = (e.durationSeconds || 0) / 3600;
     const rate = (e.billable && p && p.billable) ? Number(p.hourlyRate || 0) : 0;
     const earned = hrs * rate;
@@ -7984,6 +8635,8 @@ function exportReportCSV() {
       p ? p.name : '',
       t ? t.title : '',
       sub ? sub.title : '',
+      eType === 'budgeted' ? 'Budgeted' : (eType === 'adjustment' ? 'Variance Adjustment' : 'Actual'),
+      eType === 'budgeted' ? (e.reconciled ? 'Yes' : 'Pending') : 'N/A',
       e.billable ? 'Yes' : 'No',
       hrs.toFixed(2),
       rate.toFixed(2),
@@ -10228,7 +10881,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.50';
+const CADENCE_VERSION = 'v1.52';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
