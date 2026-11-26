@@ -2429,7 +2429,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.54</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.55</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2466,7 +2466,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.54 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.55 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -7657,8 +7657,6 @@ function renderTimeTracker(el) {
       </div>
     </div>
 
-    ${renderUnreconciledBudgetsBanner()}
-
     <div class="card" style="margin-bottom:16px;padding:12px 14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -7704,6 +7702,8 @@ function renderTimeTracker(el) {
     </div>
 
     ${renderTimeWeeklySummary(weekInfo, projFilter, typeFilter)}
+
+    ${renderUnreconciledBudgetsBanner()}
 
     <div class="card">
       <div class="card-header">
@@ -11225,7 +11225,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.54';
+const CADENCE_VERSION = 'v1.55';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
