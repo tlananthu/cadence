@@ -941,6 +941,66 @@
     padding: 12px 14px;
     margin-bottom: 16px;
   }
+  .budget-matrix-table th, .budget-matrix-table td {
+    padding: 8px 9px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+  }
+  .budget-matrix-table th {
+    text-align: center;
+    white-space: nowrap;
+  }
+  .budget-matrix-table th:first-child, .budget-matrix-table td:first-child {
+    text-align: left;
+    min-width: 245px;
+    max-width: 310px;
+  }
+  .budget-matrix-table th:last-child, .budget-matrix-table td:last-child {
+    text-align: right;
+    min-width: 105px;
+    background: var(--surface-2);
+    border-left: 1px solid var(--border);
+  }
+  .budget-matrix-cell {
+    min-width: 118px;
+    text-align: center;
+  }
+  .budget-matrix-cell.is-today-col, .budget-matrix-table th.is-today-col {
+    background: var(--primary-soft);
+  }
+  .budget-act-pill {
+    display: inline-block;
+    font-size: 0.71rem;
+    font-weight: 700;
+    color: var(--success);
+    background: var(--success-soft);
+    border-radius: 999px;
+    padding: 1px 7px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+  }
+  .budget-existing-pill {
+    display: inline-block;
+    font-size: 0.69rem;
+    font-weight: 700;
+    color: var(--budgeted);
+    background: var(--budgeted-soft);
+    border-radius: 999px;
+    padding: 1px 6px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+  }
+  .budget-hrs-input {
+    width: 82px !important;
+    text-align: right;
+    padding: 5px 7px !important;
+    font-size: 0.86rem !important;
+    font-weight: 700;
+    border-color: rgba(139, 92, 246, 0.45) !important;
+  }
+  .budget-hrs-input:focus {
+    outline: 2px solid var(--budgeted) !important;
+  }
   .reconcile-item-row {
     display: flex;
     align-items: center;
@@ -2364,7 +2424,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.52</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.53</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2401,7 +2461,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.52 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.53 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -7808,8 +7868,11 @@ function deleteTimeEntry(id) {
   showToast('Time entry deleted');
 }
 
-// Month-End Budget Planner (Quick Multi-Day Entry)
-let tempBudgetRows = [];
+// Month-End Budget Planner (Weekly Summary Projects x Dates Matrix)
+let tempBudgetMatrix = {
+  dates: [], // ['2026-11-26', '2026-11-27', '2026-11-30']
+  rows: []   // [{ projectId, taskId, billable, note, hoursByDate: { '2026-11-26': 3.5 } }]
+};
 
 function getDefaultTaskForProject(projectId) {
   return state.tasks.find(t => t.projectId === projectId && !isCalendarContainerTask(t) && t.status !== 'Done')
@@ -7819,6 +7882,49 @@ function getDefaultTaskForProject(projectId) {
     || null;
 }
 
+function formatMatrixDateHeader(dateStr) {
+  const parts = String(dateStr || '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return { dayName: '', shortDate: dateStr };
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    dayName: dayNames[dt.getDay()],
+    shortDate: `${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`
+  };
+}
+
+function getExistingHoursMapForDates(dateList) {
+  const dateSet = new Set(dateList);
+  // actualByProjDate[projId][dateStr] = hours, existingBudByProjDate[projId][dateStr] = hours
+  const actualByProjDate = {};
+  const existingBudByProjDate = {};
+  const actualDayTotals = {};
+  const existingBudDayTotals = {};
+  dateList.forEach(d => {
+    actualDayTotals[d] = 0;
+    existingBudDayTotals[d] = 0;
+  });
+
+  state.timeEntries.forEach(e => {
+    const effDate = getEffectiveTimeEntryDate(e.date);
+    if (!dateSet.has(effDate)) return;
+    const pId = e.projectId || '__unknown__';
+    const hrs = (e.durationSeconds || 0) / 3600;
+    const eType = getTimeEntryType(e);
+    if (eType === 'budgeted') {
+      if (!existingBudByProjDate[pId]) existingBudByProjDate[pId] = {};
+      existingBudByProjDate[pId][effDate] = (existingBudByProjDate[pId][effDate] || 0) + hrs;
+      existingBudDayTotals[effDate] = (existingBudDayTotals[effDate] || 0) + hrs;
+    } else {
+      if (!actualByProjDate[pId]) actualByProjDate[pId] = {};
+      actualByProjDate[pId][effDate] = (actualByProjDate[pId][effDate] || 0) + hrs;
+      actualDayTotals[effDate] = (actualDayTotals[effDate] || 0) + hrs;
+    }
+  });
+
+  return { actualByProjDate, existingBudByProjDate, actualDayTotals, existingBudDayTotals };
+}
+
 function openMonthEndBudgetModal() {
   if (state.tasks.length === 0) {
     alert('Create a project and at least one task first before planning budgeted time.');
@@ -7826,19 +7932,50 @@ function openMonthEndBudgetModal() {
   }
   const today = todayStr();
   const remWeekdays = getRemainingMonthWeekdays(today);
-  const defProj = getDefaultProject();
-  const defProjId = defProj ? defProj.id : (state.projects[0]?.id || '');
-  const defTask = getDefaultTaskForProject(defProjId);
-
   const seedDates = remWeekdays.length > 0 ? remWeekdays : [getEffectiveTimeEntryDate(today)];
-  tempBudgetRows = seedDates.map(dStr => ({
-    date: dStr,
-    projectId: defTask ? defTask.projectId : defProjId,
-    taskId: defTask ? defTask.id : state.tasks[0].id,
-    hours: 8,
-    billable: defTask ? isTaskBillable(defTask) : true,
-    note: 'Month-end budgeted'
-  }));
+
+  const { actualByProjDate, existingBudByProjDate, actualDayTotals, existingBudDayTotals } = getExistingHoursMapForDates(seedDates);
+
+  // Collect projects that already have actual or existing budgeted entries on these days, plus default project
+  const defProj = getDefaultProject();
+  const defProjId = defProj ? defProj.id : (state.projects.find(p => !p.archived)?.id || state.projects[0]?.id || '');
+
+  const projIdsSet = new Set();
+  Object.keys(actualByProjDate).forEach(pid => { if (pid !== '__unknown__' && getProject(pid)) projIdsSet.add(pid); });
+  Object.keys(existingBudByProjDate).forEach(pid => { if (pid !== '__unknown__' && getProject(pid)) projIdsSet.add(pid); });
+  if (defProjId) projIdsSet.add(defProjId);
+  if (projIdsSet.size === 0 && state.projects[0]) projIdsSet.add(state.projects[0].id);
+
+  // Sort so default project is first, then projects with actuals, then alphabetical
+  const orderedProjIds = Array.from(projIdsSet).sort((a, b) => {
+    if (a === defProjId) return -1;
+    if (b === defProjId) return 1;
+    return (getProject(a)?.name || '').localeCompare(getProject(b)?.name || '');
+  });
+
+  const rows = orderedProjIds.map((pid, idx) => {
+    const t = getDefaultTaskForProject(pid);
+    const hoursByDate = {};
+    seedDates.forEach(dStr => {
+      if (idx === 0) {
+        // Pre-fill remaining hours up to 8h on the primary project row (0 if already >= 8h logged/budgeted)
+        const alreadyCommitted = (actualDayTotals[dStr] || 0) + (existingBudDayTotals[dStr] || 0);
+        const rem = Math.max(0, Math.round((8 - alreadyCommitted) * 4) / 4);
+        hoursByDate[dStr] = rem;
+      } else {
+        hoursByDate[dStr] = 0;
+      }
+    });
+    return {
+      projectId: pid,
+      taskId: t ? t.id : state.tasks[0].id,
+      billable: t ? isTaskBillable(t) : Boolean(getProject(pid)?.billable),
+      note: 'Month-end budgeted',
+      hoursByDate
+    };
+  });
+
+  tempBudgetMatrix = { dates: seedDates, rows };
 
   openModal(`
     <div class="modal-header">
@@ -7846,56 +7983,85 @@ function openMonthEndBudgetModal() {
       <button class="btn btn-xs btn-ghost" onclick="closeModal()">✕</button>
     </div>
     <p class="field-hint" style="margin-bottom:12px;">
-      Pre-filled with remaining weekday(s) in this month (<strong>${seedDates.length} day${seedDates.length === 1 ? '' : 's'}</strong>).
-      Entries are saved under the selected project with <strong>Budgeted</strong> status so they appear in a distinct violet color in Reports and can be reconciled at the start of next month.
+      Structured like your <strong>Weekly Summary (Projects × Dates)</strong>. Existing <strong>Actual</strong> hours are included automatically so you can see exact <strong>Daily Totals</strong> while entering budgeted hours across projects.
     </p>
     <form onsubmit="saveMonthEndBudgetForm(event)">
-      <div id="monthEndBudgetRows"></div>
-      <div style="margin:8px 0 12px;">
-        <button type="button" class="btn btn-xs" onclick="addMonthEndBudgetRow()">+ Add Another Day / Split Project</button>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">🔮 Save Budgeted Entries</button>
+      <div id="monthEndBudgetMatrixWrap"></div>
+      <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-xs" onclick="autoFillBudgetRemainingTo8h()" title="Top up any day below 8.00h on the first project row">⚡ Top Up Days to 8.00h</button>
+          <button type="button" class="btn btn-xs btn-ghost" onclick="clearBudgetMatrixInputs()" title="Reset all new budgeted hour inputs to 0">Clear Inputs</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">🔮 Save Budgeted Entries</button>
+        </div>
       </div>
     </form>
   `, { wideContent: true });
 
-  renderMonthEndBudgetRows();
+  renderMonthEndBudgetMatrix();
 }
 
-function addMonthEndBudgetRow() {
-  const last = tempBudgetRows[tempBudgetRows.length - 1];
-  const defTask = last ? getTask(last.taskId) : (getDefaultTaskForProject(getDefaultProject()?.id || '') || state.tasks[0]);
-  tempBudgetRows.push({
-    date: last ? last.date : getEffectiveTimeEntryDate(todayStr()),
-    projectId: defTask ? defTask.projectId : '',
-    taskId: defTask ? defTask.id : '',
-    hours: 4,
-    billable: defTask ? isTaskBillable(defTask) : true,
-    note: 'Month-end budgeted'
+function addProjectToBudgetMatrix(projectId = '') {
+  const sel = document.getElementById('budgetAddProjectSelect');
+  const chosenProjId = projectId || sel?.value || '';
+  if (!chosenProjId) return;
+  const t = getDefaultTaskForProject(chosenProjId);
+  const hoursByDate = {};
+  tempBudgetMatrix.dates.forEach(d => { hoursByDate[d] = 0; });
+  tempBudgetMatrix.rows.push({
+    projectId: chosenProjId,
+    taskId: t ? t.id : (state.tasks[0]?.id || ''),
+    billable: t ? isTaskBillable(t) : Boolean(getProject(chosenProjId)?.billable),
+    note: 'Month-end budgeted',
+    hoursByDate
   });
-  renderMonthEndBudgetRows();
+  renderMonthEndBudgetMatrix();
 }
 
-function removeMonthEndBudgetRow(idx) {
-  if (tempBudgetRows.length <= 1) return;
-  tempBudgetRows.splice(idx, 1);
-  renderMonthEndBudgetRows();
+function removeBudgetMatrixRow(rowIdx) {
+  if (tempBudgetMatrix.rows.length <= 1) return;
+  tempBudgetMatrix.rows.splice(rowIdx, 1);
+  renderMonthEndBudgetMatrix();
 }
 
-function onBudgetRowProjectChange(idx, newProjId) {
-  const row = tempBudgetRows[idx];
+function addDateToBudgetMatrix() {
+  const inp = document.getElementById('budgetAddDateInput');
+  const rawDate = inp?.value || '';
+  if (!rawDate) return;
+  const effDate = getEffectiveTimeEntryDate(rawDate);
+  if (tempBudgetMatrix.dates.includes(effDate)) {
+    showToast(`${effDate} is already in the table`);
+    return;
+  }
+  tempBudgetMatrix.dates.push(effDate);
+  tempBudgetMatrix.dates.sort();
+  tempBudgetMatrix.rows.forEach(r => {
+    if (r.hoursByDate[effDate] === undefined) r.hoursByDate[effDate] = 0;
+  });
+  renderMonthEndBudgetMatrix();
+}
+
+function removeDateFromBudgetMatrix(dateStr) {
+  if (tempBudgetMatrix.dates.length <= 1) return;
+  tempBudgetMatrix.dates = tempBudgetMatrix.dates.filter(d => d !== dateStr);
+  tempBudgetMatrix.rows.forEach(r => { delete r.hoursByDate[dateStr]; });
+  renderMonthEndBudgetMatrix();
+}
+
+function onBudgetMatrixRowProjectChange(rowIdx, newProjId) {
+  const row = tempBudgetMatrix.rows[rowIdx];
   if (!row) return;
   row.projectId = newProjId;
   const t = getDefaultTaskForProject(newProjId);
   row.taskId = t ? t.id : (state.tasks[0]?.id || '');
   row.billable = t ? isTaskBillable(t) : Boolean(getProject(newProjId)?.billable);
-  renderMonthEndBudgetRows();
+  renderMonthEndBudgetMatrix();
 }
 
-function onBudgetRowTaskChange(idx, newTaskId) {
-  const row = tempBudgetRows[idx];
+function onBudgetMatrixRowTaskChange(rowIdx, newTaskId) {
+  const row = tempBudgetMatrix.rows[rowIdx];
   if (!row) return;
   row.taskId = newTaskId;
   const t = getTask(newTaskId);
@@ -7903,59 +8069,266 @@ function onBudgetRowTaskChange(idx, newTaskId) {
     row.projectId = t.projectId;
     row.billable = isTaskBillable(t);
   }
-  renderMonthEndBudgetRows();
+  renderMonthEndBudgetMatrix();
 }
 
-function renderMonthEndBudgetRows() {
-  const wrap = document.getElementById('monthEndBudgetRows');
-  if (!wrap) return;
-  wrap.innerHTML = tempBudgetRows.map((r, i) => {
-    const projTasks = state.tasks.filter(t => t.projectId === r.projectId);
-    const taskOptions = projTasks.length > 0 ? projTasks : state.tasks;
-    return `
-      <div style="display:grid;grid-template-columns:135px minmax(150px,1fr) minmax(190px,1.3fr) 82px 105px minmax(140px,1fr) auto;gap:7px;align-items:center;margin-bottom:8px;padding:8px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);">
-        <input type="date" value="${esc(r.date)}" onchange="tempBudgetRows[${i}].date=this.value" title="Date" required />
-        <select onchange="onBudgetRowProjectChange(${i}, this.value)" title="Project">
-          ${state.projects.filter(p => !p.archived || p.id === r.projectId).map(p => `<option value="${p.id}" ${p.id === r.projectId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
-        </select>
-        <select onchange="onBudgetRowTaskChange(${i}, this.value)" title="Task">
-          ${taskOptions.map(t => `<option value="${t.id}" ${t.id === r.taskId ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}
-        </select>
-        <input type="number" min="0.25" max="24" step="0.25" value="${r.hours}" oninput="tempBudgetRows[${i}].hours=Number(this.value||0)" placeholder="Hours" title="Budgeted Hours" required />
-        <select onchange="tempBudgetRows[${i}].billable=(this.value==='true')" title="Billable">
-          <option value="true" ${r.billable ? 'selected' : ''}>Billable</option>
-          <option value="false" ${!r.billable ? 'selected' : ''}>Non-billable</option>
-        </select>
-        <input type="text" value="${esc(r.note)}" oninput="tempBudgetRows[${i}].note=this.value" placeholder="Planned work note" />
-        <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger)" onclick="removeMonthEndBudgetRow(${i})" ${tempBudgetRows.length <= 1 ? 'disabled' : ''} title="Remove row">✕</button>
+function onBudgetMatrixCellInput(rowIdx, dateStr, val) {
+  const row = tempBudgetMatrix.rows[rowIdx];
+  if (!row) return;
+  row.hoursByDate[dateStr] = Math.max(0, Number(val || 0));
+  updateBudgetMatrixTotalsOnly();
+}
+
+function autoFillBudgetRemainingTo8h() {
+  if (tempBudgetMatrix.rows.length === 0) return;
+  const { actualDayTotals, existingBudDayTotals } = getExistingHoursMapForDates(tempBudgetMatrix.dates);
+  tempBudgetMatrix.dates.forEach(dStr => {
+    const otherRowsBud = tempBudgetMatrix.rows.slice(1).reduce((s, r) => s + Number(r.hoursByDate[dStr] || 0), 0);
+    const already = (actualDayTotals[dStr] || 0) + (existingBudDayTotals[dStr] || 0) + otherRowsBud;
+    tempBudgetMatrix.rows[0].hoursByDate[dStr] = Math.max(0, Math.round((8 - already) * 4) / 4);
+  });
+  renderMonthEndBudgetMatrix();
+}
+
+function clearBudgetMatrixInputs() {
+  tempBudgetMatrix.rows.forEach(r => {
+    tempBudgetMatrix.dates.forEach(d => { r.hoursByDate[d] = 0; });
+  });
+  renderMonthEndBudgetMatrix();
+}
+
+function updateBudgetMatrixTotalsOnly() {
+  const dates = tempBudgetMatrix.dates;
+  const rows = tempBudgetMatrix.rows;
+  const { actualByProjDate, existingBudByProjDate, actualDayTotals, existingBudDayTotals } = getExistingHoursMapForDates(dates);
+
+  // Track which row index is the first occurrence of each projectId so actuals aren't double-counted if a project is listed twice
+  const firstRowForProj = {};
+  rows.forEach((r, idx) => {
+    if (firstRowForProj[r.projectId] === undefined) firstRowForProj[r.projectId] = idx;
+  });
+
+  // Update per-row totals
+  rows.forEach((r, idx) => {
+    const rowTotalEl = document.getElementById(`bmRowTotal_${idx}`);
+    if (!rowTotalEl) return;
+    let newBudSum = 0;
+    let actSum = 0;
+    let exBudSum = 0;
+    dates.forEach(d => {
+      newBudSum += Number(r.hoursByDate[d] || 0);
+      if (firstRowForProj[r.projectId] === idx) {
+        actSum += (actualByProjDate[r.projectId]?.[d] || 0);
+        exBudSum += (existingBudByProjDate[r.projectId]?.[d] || 0);
+      }
+    });
+    const combined = actSum + exBudSum + newBudSum;
+    rowTotalEl.innerHTML = `
+      <div><strong>${combined.toFixed(2)}h</strong></div>
+      ${(actSum > 0 || exBudSum > 0)
+        ? `<div style="font-size:0.69rem;color:var(--text-muted);font-weight:500;">${actSum.toFixed(2)}h act + ${(exBudSum + newBudSum).toFixed(2)}h bud</div>`
+        : `<div style="font-size:0.69rem;color:var(--budgeted);font-weight:600;">🔮 ${newBudSum.toFixed(2)}h bud</div>`}
+    `;
+  });
+
+  // Update per-day totals and grand total
+  let grandCombined = 0;
+  let grandAct = 0;
+  let grandBud = 0;
+
+  dates.forEach(d => {
+    const actDay = actualDayTotals[d] || 0;
+    const exBudDay = existingBudDayTotals[d] || 0;
+    const newBudDay = rows.reduce((s, r) => s + Number(r.hoursByDate[d] || 0), 0);
+    const totalBudDay = exBudDay + newBudDay;
+    const combinedDay = actDay + totalBudDay;
+
+    grandAct += actDay;
+    grandBud += totalBudDay;
+    grandCombined += combinedDay;
+
+    const dayTotalEl = document.getElementById(`bmDayTotal_${d}`);
+    if (dayTotalEl) {
+      const color = Math.abs(combinedDay - 8) < 0.01
+        ? 'color:var(--success);'
+        : (combinedDay > 8 ? 'color:var(--warning);' : 'color:var(--text);');
+      dayTotalEl.innerHTML = `
+        <div style="${color}font-size:0.9rem;">${combinedDay.toFixed(2)}h</div>
+        <div style="font-size:0.68rem;font-weight:500;color:var(--text-muted);">
+          ${actDay > 0 ? `${actDay.toFixed(2)}h act + ` : ''}🔮 ${totalBudDay.toFixed(2)}h bud
+        </div>
+      `;
+    }
+  });
+
+  const grandEl = document.getElementById('bmGrandTotal');
+  if (grandEl) {
+    grandEl.innerHTML = `
+      <div style="font-size:0.92rem;">${grandCombined.toFixed(2)}h</div>
+      <div style="font-size:0.68rem;font-weight:500;color:var(--text-muted);">
+        ${grandAct > 0 ? `${grandAct.toFixed(2)}h act + ` : ''}🔮 ${grandBud.toFixed(2)}h bud
       </div>
     `;
-  }).join('');
+  }
+}
+
+function renderMonthEndBudgetMatrix() {
+  const wrap = document.getElementById('monthEndBudgetMatrixWrap');
+  if (!wrap) return;
+
+  const today = todayStr();
+  const dates = tempBudgetMatrix.dates;
+  const rows = tempBudgetMatrix.rows;
+  const { actualByProjDate, existingBudByProjDate } = getExistingHoursMapForDates(dates);
+
+  const firstRowForProj = {};
+  rows.forEach((r, idx) => {
+    if (firstRowForProj[r.projectId] === undefined) firstRowForProj[r.projectId] = idx;
+  });
+
+  const activeProjects = state.projects.filter(p => !p.archived && !p.isCalendarProject);
+  const allSelectableProjects = activeProjects.length > 0 ? activeProjects : state.projects.filter(p => !p.archived);
+  const usedProjIds = new Set(rows.map(r => r.projectId));
+  const unusedProjects = allSelectableProjects.filter(p => !usedProjIds.has(p.id));
+  const nextSuggestedDate = (() => {
+    const last = dates[dates.length - 1] || today;
+    const [y, m, d] = last.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + 1);
+    return getEffectiveTimeEntryDate(formatLocalDate(dt));
+  })();
+
+  wrap.innerHTML = `
+    <div class="table-wrap" style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;">
+      <table class="tt-summary-table budget-matrix-table">
+        <thead>
+          <tr>
+            <th>Project & Task</th>
+            ${dates.map(d => {
+              const hdr = formatMatrixDateHeader(d);
+              const isTod = d === today;
+              return `
+                <th class="budget-matrix-cell ${isTod ? 'is-today-col' : ''}">
+                  <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+                    <span>${esc(hdr.dayName)}</span>
+                    ${dates.length > 1 ? `<button type="button" class="btn btn-xs btn-ghost" style="padding:0 3px;font-size:0.65rem;color:var(--text-muted);" onclick="removeDateFromBudgetMatrix('${d}')" title="Remove ${d} column">✕</button>` : ''}
+                  </div>
+                  <div style="font-size:0.7rem;font-weight:500;opacity:0.85;">${esc(hdr.shortDate)}</div>
+                </th>
+              `;
+            }).join('')}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, idx) => {
+            const projTasks = state.tasks.filter(t => t.projectId === r.projectId);
+            const taskOptions = projTasks.length > 0 ? projTasks : state.tasks;
+            const showExistingForThisRow = firstRowForProj[r.projectId] === idx;
+            return `
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+                    <select style="padding:5px 7px;font-size:0.82rem;font-weight:700;" onchange="onBudgetMatrixRowProjectChange(${idx}, this.value)" title="Project">
+                      ${state.projects.filter(p => !p.archived || p.id === r.projectId).map(p => `<option value="${p.id}" ${p.id === r.projectId ? 'selected' : ''}>📁 ${esc(p.name)}</option>`).join('')}
+                    </select>
+                    <button type="button" class="btn btn-xs btn-ghost" style="color:var(--danger);flex-shrink:0;" onclick="removeBudgetMatrixRow(${idx})" ${rows.length <= 1 ? 'disabled' : ''} title="Remove project row">✕</button>
+                  </div>
+                  <div style="display:flex;gap:5px;align-items:center;margin-bottom:4px;">
+                    <select style="padding:4px 6px;font-size:0.76rem;" onchange="onBudgetMatrixRowTaskChange(${idx}, this.value)" title="Task to log budgeted hours under">
+                      ${taskOptions.map(t => `<option value="${t.id}" ${t.id === r.taskId ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}
+                    </select>
+                    <select style="width:auto;padding:4px 6px;font-size:0.74rem;" onchange="tempBudgetMatrix.rows[${idx}].billable=(this.value==='true')" title="Billable status">
+                      <option value="true" ${r.billable ? 'selected' : ''}>💲 Bill</option>
+                      <option value="false" ${!r.billable ? 'selected' : ''}>Non-bill</option>
+                    </select>
+                  </div>
+                  <input type="text" style="padding:4px 7px;font-size:0.75rem;" value="${esc(r.note)}" oninput="tempBudgetMatrix.rows[${idx}].note=this.value" placeholder="Planned work note..." />
+                </td>
+                ${dates.map(d => {
+                  const actHrs = showExistingForThisRow ? (actualByProjDate[r.projectId]?.[d] || 0) : 0;
+                  const exBudHrs = showExistingForThisRow ? (existingBudByProjDate[r.projectId]?.[d] || 0) : 0;
+                  const val = r.hoursByDate[d] !== undefined ? r.hoursByDate[d] : 0;
+                  const isTod = d === today;
+                  return `
+                    <td class="budget-matrix-cell ${isTod ? 'is-today-col' : ''}">
+                      ${actHrs > 0 ? `<div><span class="budget-act-pill" title="Actual time already logged for this project on ${d}">⏱ ${actHrs.toFixed(2)}h act</span></div>` : ''}
+                      ${exBudHrs > 0 ? `<div><span class="budget-existing-pill" title="Budgeted hours already saved for this project on ${d}">🔮 ${exBudHrs.toFixed(2)}h saved</span></div>` : ''}
+                      <div style="display:inline-flex;align-items:center;gap:3px;">
+                        <input type="number" class="budget-hrs-input" min="0" max="24" step="0.25"
+                          value="${val}"
+                          oninput="onBudgetMatrixCellInput(${idx}, '${d}', this.value)"
+                          title="Budgeted hours to add for ${d}" />
+                        <span style="font-size:0.74rem;color:var(--text-muted);font-weight:600;">h</span>
+                      </div>
+                    </td>
+                  `;
+                }).join('')}
+                <td class="tt-row-total" id="bmRowTotal_${idx}"></td>
+              </tr>
+            `;
+          }).join('')}
+          <tr class="tt-total-row">
+            <td>
+              <div>Daily Total</div>
+              <div style="font-size:0.7rem;font-weight:500;color:var(--text-muted);">Actual + Budgeted (8.00h target)</div>
+            </td>
+            ${dates.map(d => `
+              <td class="budget-matrix-cell ${d === today ? 'is-today-col' : ''}" id="bmDayTotal_${d}"></td>
+            `).join('')}
+            <td class="tt-row-total" id="bmGrandTotal"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:0.78rem;font-weight:700;color:var(--text-muted);">+ Project Row:</span>
+        <select id="budgetAddProjectSelect" style="width:auto;min-width:180px;padding:5px 8px;font-size:0.8rem;">
+          ${(unusedProjects.length > 0 ? unusedProjects : allSelectableProjects).map(p => `<option value="${p.id}">📁 ${esc(p.name)}</option>`).join('')}
+          ${unusedProjects.length > 0 && allSelectableProjects.length > unusedProjects.length ? `<optgroup label="Already in table (add another task row)">${allSelectableProjects.filter(p => usedProjIds.has(p.id)).map(p => `<option value="${p.id}">📁 ${esc(p.name)}</option>`).join('')}</optgroup>` : ''}
+        </select>
+        <button type="button" class="btn btn-xs btn-primary" onclick="addProjectToBudgetMatrix()">+ Add Project</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:0.78rem;font-weight:700;color:var(--text-muted);">+ Date Column:</span>
+        <input type="date" id="budgetAddDateInput" value="${esc(nextSuggestedDate)}" style="width:auto;padding:4px 8px;font-size:0.8rem;" />
+        <button type="button" class="btn btn-xs" onclick="addDateToBudgetMatrix()">+ Add Date</button>
+      </div>
+    </div>
+  `;
+
+  updateBudgetMatrixTotalsOnly();
 }
 
 function saveMonthEndBudgetForm(e) {
   e.preventDefault();
   let createdCount = 0;
-  tempBudgetRows.forEach(r => {
-    const secs = Math.round(Number(r.hours || 0) * 3600);
-    if (secs <= 0 || !r.taskId) return;
+  tempBudgetMatrix.rows.forEach(r => {
+    if (!r.taskId) return;
     const task = getTask(r.taskId);
-    state.timeEntries.unshift({
-      id: uid('time'),
-      projectId: task ? task.projectId : r.projectId,
-      taskId: r.taskId,
-      subtaskId: null,
-      entryType: 'budgeted',
-      reconciled: false,
-      billable: Boolean(r.billable),
-      date: getEffectiveTimeEntryDate(r.date || todayStr()),
-      durationSeconds: secs,
-      note: (r.note || '').trim() || 'Month-end budgeted'
+    const projId = task ? task.projectId : r.projectId;
+    tempBudgetMatrix.dates.forEach(dStr => {
+      const hrs = Number(r.hoursByDate[dStr] || 0);
+      const secs = Math.round(hrs * 3600);
+      if (secs <= 0) return;
+      state.timeEntries.unshift({
+        id: uid('time'),
+        projectId: projId,
+        taskId: r.taskId,
+        subtaskId: null,
+        entryType: 'budgeted',
+        reconciled: false,
+        billable: Boolean(r.billable),
+        date: getEffectiveTimeEntryDate(dStr),
+        durationSeconds: secs,
+        note: (r.note || '').trim() || 'Month-end budgeted'
+      });
+      createdCount++;
     });
-    createdCount++;
   });
   if (createdCount === 0) {
-    alert('Please enter at least one row with hours greater than 0.');
+    alert('Please enter budgeted hours greater than 0 in at least one cell.');
     return;
   }
   saveState();
@@ -10881,7 +11254,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.52';
+const CADENCE_VERSION = 'v1.53';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
