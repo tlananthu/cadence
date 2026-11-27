@@ -673,6 +673,27 @@
   .rte-rendered h3 { margin: 6px 0 3px; font-size: 1rem; }
   .rte-editor:focus { border-color: var(--primary); }
   .rte-editor ul { padding-left: 22px; margin: 6px 0; }
+  .rte-editor ul, .rte-rendered ul, .note-body ul { list-style-type: disc; }
+  .rte-editor ul ul, .rte-rendered ul ul, .note-body ul ul { list-style-type: circle; margin: 2px 0; }
+  .rte-editor ul ul ul, .rte-rendered ul ul ul, .note-body ul ul ul { list-style-type: square; margin: 2px 0; }
+  .rte-editor ol, .rte-rendered ol, .note-body ol { list-style-type: decimal; }
+  .rte-editor ol ol, .rte-rendered ol ol, .note-body ol ol { list-style-type: lower-alpha; margin: 2px 0; }
+  .rte-editor ol ol ol, .rte-rendered ol ol ol, .note-body ol ol ol { list-style-type: lower-roman; margin: 2px 0; }
+  .rte-editor ul ol, .rte-editor ol ul,
+  .rte-rendered ul ol, .rte-rendered ol ul,
+  .note-body ul ol, .note-body ol ul { margin: 2px 0; }
+  .rte-editor li, .rte-rendered li { margin-bottom: 2px; }
+  .rte-editor s, .rte-editor strike, .rte-editor del,
+  .rte-rendered s, .rte-rendered strike, .rte-rendered del,
+  .note-body s, .note-body strike, .note-body del {
+    text-decoration: line-through;
+    opacity: 0.72;
+  }
+  .rte-editor blockquote, .rte-rendered blockquote, .note-body blockquote {
+    margin: 4px 0 4px 18px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+  }
   .rte-editor h3 { margin: 8px 0 4px; font-size: 1.05rem; }
   .rte-editor table, .rte-rendered table, .note-body table {
     width: 100%;
@@ -2429,7 +2450,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.57</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.58</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2466,7 +2487,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.57 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.58 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2913,7 +2934,7 @@ function sanitizeNoteHtml(html) {
   const div = document.createElement('div');
   div.innerHTML = html || '';
   const allowed = new Set([
-    'B', 'STRONG', 'I', 'EM', 'U', 'H3', 'H2', 'UL', 'OL', 'LI', 'P', 'BR', 'DIV', 'SPAN',
+    'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL', 'H3', 'H2', 'UL', 'OL', 'LI', 'P', 'BR', 'DIV', 'SPAN', 'BLOCKQUOTE',
     'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD'
   ]);
   const dropCompletely = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'COLGROUP', 'COL', 'HEAD']);
@@ -5366,7 +5387,7 @@ function openTaskModal(taskId = null, opts = {}) {
         <label>Description</label>
         ${renderRteToolbar('tDesc')}
         <div class="rte-editor desc-editor" id="tDesc" contenteditable="true" data-placeholder="Extra context or acceptance criteria...">${sanitizeNoteHtml(t?.description || '')}</div>
-        <div class="field-hint">Supports tables: paste formatted tables from Excel, Google Sheets, Word, or web pages, or use the table buttons above (Tab moves across cells).</div>
+        <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> (or <strong>Ctrl+] / [</strong>) indents &amp; outdents nested bullets • <strong>Ctrl+Enter</strong> marks/unmarks the entire line completed • <strong>Ctrl+Shift+X</strong> strikes selection • Paste formatted tables from Excel/Sheets.</div>
       </div>
 
       <div class="modal-subtask-grid-wrap">
@@ -5697,7 +5718,7 @@ function openSubtaskModal(taskId, subId = null) {
         <label>Description (optional)</label>
         ${renderRteToolbar('stDesc')}
         <div class="rte-editor desc-editor" id="stDesc" contenteditable="true" data-placeholder="Details or notes for this subtask...">${sanitizeNoteHtml(s?.description || '')}</div>
-        <div class="field-hint">Supports tables: paste directly from Excel/Google Sheets or use the table buttons above.</div>
+        <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> nests bullets • <strong>Ctrl+Enter</strong> marks/unmarks entire line completed • <strong>Ctrl+Shift+X</strong> strikes selection.</div>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px;">
@@ -6407,7 +6428,7 @@ function openNoteModal(noteId = null) {
           <label>Note Content</label>
           ${renderRteToolbar('nBody')}
           <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
-          <div class="field-hint">Supports tables: paste formatted tables from Excel, Google Sheets, Word, or web pages, or use the table buttons above (Tab moves across cells).</div>
+          <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> (or <strong>Ctrl+] / [</strong>) indents &amp; outdents nested bullets • <strong>Ctrl+Enter</strong> marks/unmarks the entire line completed • <strong>Ctrl+Shift+X</strong> strikes selection • Paste formatted tables from Excel/Sheets.</div>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
@@ -6491,6 +6512,10 @@ function exportNoteToPdf(noteId = '') {
     margin: 8px 0;
   }
   .note-content li { margin-bottom: 4px; }
+  .note-content ul ul { list-style-type: circle; margin: 2px 0; }
+  .note-content ul ul ul { list-style-type: square; margin: 2px 0; }
+  .note-content ol ol { list-style-type: lower-alpha; margin: 2px 0; }
+  .note-content s, .note-content strike, .note-content del { text-decoration: line-through; color: #64748b; }
   .note-content table {
     width: 100%;
     border-collapse: collapse;
@@ -6556,12 +6581,17 @@ const rteLastCellByEditor = {};
 function renderRteToolbar(editorId) {
   return `
     <div class="rte-toolbar">
-      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','bold')" title="Bold"><b>B</b></button>
-      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','italic')" title="Italic"><i>I</i></button>
-      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','underline')" title="Underline"><u>U</u></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','strike')" title="Strikethrough (Ctrl+Shift+X / Alt+Shift+5)"><s>S</s></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteToggleLineComplete('${editorId}')" title="Mark / unmark entire line completed with strikethrough (Ctrl+Enter — no selection needed)">✓ Line</button>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','heading')" title="Heading"><b>H</b></button>
+      <span class="rte-sep"></span>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','list')" title="Bullet list">• List</button>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="formatRichEditor('${editorId}','olist')" title="Numbered list">1. List</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteIndentList('${editorId}')" title="Indent / Nest bullet (Tab or Ctrl+])">⇥</button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteOutdentList('${editorId}')" title="Outdent bullet (Shift+Tab or Ctrl+[)">⇤</button>
       <span class="rte-sep"></span>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteInsertTable('${editorId}')" title="Insert a 3×3 table">⊞ Table</button>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','addRow')" title="Add a row below the current cell">+Row</button>
@@ -6581,9 +6611,404 @@ function formatRichEditor(editorId, type) {
   if (type === 'bold') document.execCommand('bold', false, null);
   if (type === 'italic') document.execCommand('italic', false, null);
   if (type === 'underline') document.execCommand('underline', false, null);
+  if (type === 'strike') document.execCommand('strikeThrough', false, null);
   if (type === 'list') document.execCommand('insertUnorderedList', false, null);
   if (type === 'olist') document.execCommand('insertOrderedList', false, null);
   if (type === 'heading') document.execCommand('formatBlock', false, 'h3');
+  if (type === 'indent') rteIndentList(editorId);
+  if (type === 'outdent') rteOutdentList(editorId);
+  if (type === 'completeLine') rteToggleLineComplete(editorId);
+}
+
+const RTE_BLOCK_TAGS = new Set(['LI', 'P', 'DIV', 'H2', 'H3', 'TD', 'TH', 'BLOCKQUOTE']);
+const RTE_LINE_BOUNDARY_TAGS = new Set(['BR', 'UL', 'OL', 'LI', 'P', 'DIV', 'H2', 'H3', 'TABLE', 'BLOCKQUOTE']);
+const RTE_STRIKE_TAGS = new Set(['S', 'STRIKE', 'DEL']);
+
+function isRteStrikeNode(node) {
+  return Boolean(node && node.nodeType === 1 && RTE_STRIKE_TAGS.has(node.tagName));
+}
+
+function isRteLineBoundary(node) {
+  return Boolean(node && node.nodeType === 1 && RTE_LINE_BOUNDARY_TAGS.has(node.tagName));
+}
+
+function getRteSelectedListItems(editor) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return [];
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return [];
+
+  if (sel.isCollapsed) {
+    let node = sel.anchorNode;
+    if (node && node.nodeType === 3) node = node.parentElement;
+    const li = node ? node.closest('li') : null;
+    return (li && editor.contains(li)) ? [li] : [];
+  }
+
+  const allLis = Array.from(editor.querySelectorAll('li'));
+  const matched = [];
+  allLis.forEach(li => {
+    const ownChildren = Array.from(li.childNodes).filter(ch => !(ch.nodeType === 1 && (ch.tagName === 'UL' || ch.tagName === 'OL')));
+    const hitsOwn = ownChildren.some(ch => {
+      try { return range.intersectsNode(ch); } catch (e) { return false; }
+    });
+    if (hitsOwn) matched.push(li);
+  });
+
+  return matched.filter(li => !matched.some(other => other !== li && other.contains(li)));
+}
+
+function rteIndentList(editorId) {
+  const editor = typeof editorId === 'string' ? document.getElementById(editorId) : editorId;
+  if (!editor) return false;
+  editor.focus();
+  const items = getRteSelectedListItems(editor);
+  if (items.length === 0) {
+    document.execCommand('indent', false, null);
+    return true;
+  }
+
+  const sel = window.getSelection();
+  const origRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+  const saved = origRange ? {
+    sc: origRange.startContainer,
+    so: origRange.startOffset,
+    ec: origRange.endContainer,
+    eo: origRange.endOffset
+  } : null;
+
+  let changed = false;
+  items.forEach(li => {
+    const parentList = li.parentElement;
+    if (!parentList || (parentList.tagName !== 'UL' && parentList.tagName !== 'OL')) return;
+    const prevLi = li.previousElementSibling;
+    if (!prevLi || prevLi.tagName !== 'LI') return;
+
+    const listTag = parentList.tagName.toLowerCase();
+    let subList = prevLi.lastElementChild;
+    if (!subList || (subList.tagName !== 'UL' && subList.tagName !== 'OL')) {
+      subList = document.createElement(listTag);
+      prevLi.appendChild(subList);
+    }
+    subList.appendChild(li);
+    changed = true;
+  });
+
+  if (saved && sel) {
+    try {
+      const r = document.createRange();
+      r.setStart(saved.sc, saved.so);
+      r.setEnd(saved.ec, saved.eo);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } catch (e) {}
+  }
+  return changed;
+}
+
+function rteOutdentList(editorId) {
+  const editor = typeof editorId === 'string' ? document.getElementById(editorId) : editorId;
+  if (!editor) return false;
+  editor.focus();
+  const items = getRteSelectedListItems(editor);
+  if (items.length === 0) {
+    document.execCommand('outdent', false, null);
+    return true;
+  }
+
+  const sel = window.getSelection();
+  const origRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+  const saved = origRange ? {
+    sc: origRange.startContainer,
+    so: origRange.startOffset,
+    ec: origRange.endContainer,
+    eo: origRange.endOffset
+  } : null;
+
+  [...items].reverse().forEach(li => {
+    const parentList = li.parentElement;
+    if (!parentList || (parentList.tagName !== 'UL' && parentList.tagName !== 'OL')) return;
+    const listTag = parentList.tagName.toLowerCase();
+    const listParent = parentList.parentElement;
+
+    const followingSiblings = [];
+    let sib = li.nextElementSibling;
+    while (sib) {
+      followingSiblings.push(sib);
+      sib = sib.nextElementSibling;
+    }
+
+    if (listParent && listParent.tagName === 'LI' && listParent.parentElement && (listParent.parentElement.tagName === 'UL' || listParent.parentElement.tagName === 'OL')) {
+      if (followingSiblings.length > 0) {
+        let childSubList = li.lastElementChild;
+        if (!childSubList || (childSubList.tagName !== 'UL' && childSubList.tagName !== 'OL')) {
+          childSubList = document.createElement(listTag);
+          li.appendChild(childSubList);
+        }
+        followingSiblings.forEach(s => {
+          if (s.tagName === 'UL' || s.tagName === 'OL') {
+            while (s.firstChild) childSubList.appendChild(s.firstChild);
+            s.remove();
+          } else {
+            childSubList.appendChild(s);
+          }
+        });
+      }
+      listParent.parentElement.insertBefore(li, listParent.nextSibling);
+      if (parentList.children.length === 0) parentList.remove();
+    } else if (listParent && (listParent.tagName === 'UL' || listParent.tagName === 'OL')) {
+      if (followingSiblings.length > 0) {
+        let childSubList = li.lastElementChild;
+        if (!childSubList || (childSubList.tagName !== 'UL' && childSubList.tagName !== 'OL')) {
+          childSubList = document.createElement(listTag);
+          li.appendChild(childSubList);
+        }
+        followingSiblings.forEach(s => {
+          if (s.tagName === 'UL' || s.tagName === 'OL') {
+            while (s.firstChild) childSubList.appendChild(s.firstChild);
+            s.remove();
+          } else {
+            childSubList.appendChild(s);
+          }
+        });
+      }
+      listParent.insertBefore(li, parentList.nextSibling);
+      if (parentList.children.length === 0) parentList.remove();
+    } else if (listParent) {
+      // Top-level list item: split parentList cleanly and unwrap li into a <div>
+      followingSiblings.forEach(s => s.remove());
+      const nestedLists = Array.from(li.children).filter(c => c.tagName === 'UL' || c.tagName === 'OL');
+      nestedLists.forEach(nl => li.removeChild(nl));
+      const div = document.createElement('div');
+      while (li.firstChild) div.appendChild(li.firstChild);
+      if (!div.childNodes.length) div.innerHTML = '<br>';
+      if (saved && saved.sc === li) { saved.sc = div; saved.so = Math.min(saved.so, div.childNodes.length); }
+      if (saved && saved.ec === li) { saved.ec = div; saved.eo = Math.min(saved.eo, div.childNodes.length); }
+      li.remove();
+
+      let anchor = parentList;
+      if (parentList.children.length === 0) {
+        listParent.insertBefore(div, parentList);
+        parentList.remove();
+        anchor = div;
+      } else {
+        listParent.insertBefore(div, parentList.nextSibling);
+        anchor = div;
+      }
+      nestedLists.forEach(nl => {
+        listParent.insertBefore(nl, anchor.nextSibling);
+        anchor = nl;
+      });
+      if (followingSiblings.length > 0) {
+        const tailList = document.createElement(listTag);
+        followingSiblings.forEach(s => tailList.appendChild(s));
+        listParent.insertBefore(tailList, anchor.nextSibling);
+      }
+    }
+  });
+
+  if (saved && sel) {
+    try {
+      const r = document.createRange();
+      r.setStart(saved.sc, saved.so);
+      r.setEnd(saved.ec, saved.eo);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } catch (e) {}
+  }
+  return true;
+}
+
+function isRteNodeFullyStruck(node, stopAtBlock) {
+  if (!node) return true;
+  if (node.nodeType === 3) {
+    if (!node.nodeValue || !node.nodeValue.trim()) return true;
+    let p = node.parentElement;
+    while (p && p !== stopAtBlock) {
+      if (isRteStrikeNode(p)) return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  if (node.nodeType === 1) {
+    if (isRteStrikeNode(node)) return true;
+    return Array.from(node.childNodes).every(ch => isRteNodeFullyStruck(ch, stopAtBlock));
+  }
+  return true;
+}
+
+function unwrapRteStrikeDescendants(root) {
+  if (!root || root.nodeType !== 1) return;
+  const strikes = Array.from(root.querySelectorAll('s, strike, del'));
+  strikes.forEach(st => {
+    const parent = st.parentNode;
+    if (!parent) return;
+    while (st.firstChild) parent.insertBefore(st.firstChild, st);
+    parent.removeChild(st);
+  });
+}
+
+function getRteLineSegmentAtPoint(editor, container, offset) {
+  if (!editor || !container || !editor.contains(container)) return null;
+
+  let block = container.nodeType === 3 ? container.parentElement : container;
+  while (block && block !== editor && !RTE_BLOCK_TAGS.has(block.tagName)) {
+    block = block.parentElement;
+  }
+  if (!block || !editor.contains(block)) block = editor;
+
+  let directChild = null;
+  if (container === block) {
+    const kids = block.childNodes;
+    if (kids.length === 0) return null;
+    if (offset < kids.length && !isRteLineBoundary(kids[offset])) {
+      directChild = kids[offset];
+    } else if (offset > 0 && !isRteLineBoundary(kids[offset - 1])) {
+      directChild = kids[offset - 1];
+    } else {
+      return null;
+    }
+  } else {
+    let cur = container;
+    while (cur && cur.parentNode !== block) {
+      cur = cur.parentNode;
+    }
+    if (!cur || isRteLineBoundary(cur)) return null;
+    directChild = cur;
+  }
+
+  const kids = Array.from(block.childNodes);
+  const idx = kids.indexOf(directChild);
+  if (idx === -1) return null;
+
+  let startIdx = idx;
+  while (startIdx > 0 && !isRteLineBoundary(kids[startIdx - 1])) startIdx--;
+  let endIdx = idx;
+  while (endIdx < kids.length - 1 && !isRteLineBoundary(kids[endIdx + 1])) endIdx++;
+
+  const nodes = kids.slice(startIdx, endIdx + 1);
+  const hasVisibleText = nodes.some(n => (n.textContent || '').trim().length > 0);
+  if (!hasVisibleText) return null;
+
+  return { block, nodes };
+}
+
+function getRteLineSegmentsInSelection(editor) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return [];
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return [];
+
+  if (sel.isCollapsed) {
+    const seg = getRteLineSegmentAtPoint(editor, sel.anchorNode, sel.anchorOffset);
+    return seg ? [seg] : [];
+  }
+
+  const segments = [];
+  const seenFirstNodes = new Set();
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+  let textNode;
+  while ((textNode = walker.nextNode())) {
+    if (!textNode.nodeValue || !textNode.nodeValue.trim()) continue;
+    let hits = false;
+    try { hits = range.intersectsNode(textNode); } catch (e) { hits = false; }
+    if (!hits) continue;
+    const seg = getRteLineSegmentAtPoint(editor, textNode, 0);
+    if (seg && !seenFirstNodes.has(seg.nodes[0])) {
+      seenFirstNodes.add(seg.nodes[0]);
+      segments.push(seg);
+    }
+  }
+  return segments;
+}
+
+function rteToggleLineComplete(editorId) {
+  const editor = typeof editorId === 'string' ? document.getElementById(editorId) : editorId;
+  if (!editor) return false;
+  editor.focus();
+
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+
+  const wasCollapsed = sel.isCollapsed;
+  const origAnchorNode = sel.anchorNode;
+  const origAnchorOffset = sel.anchorOffset;
+  const segments = getRteLineSegmentsInSelection(editor);
+  if (segments.length === 0) return false;
+
+  let wasAtEndOfLine = false;
+  if (wasCollapsed && segments.length === 1) {
+    const seg = segments[0];
+    const lastNode = seg.nodes[seg.nodes.length - 1];
+    if (origAnchorNode === seg.block) {
+      const idxAfterLast = Array.from(seg.block.childNodes).indexOf(lastNode) + 1;
+      if (origAnchorOffset >= idxAfterLast) wasAtEndOfLine = true;
+    } else if (origAnchorNode.nodeType === 3 && origAnchorOffset === origAnchorNode.nodeValue.length) {
+      const testRange = document.createRange();
+      testRange.setStart(origAnchorNode, origAnchorOffset);
+      testRange.setEndAfter(lastNode);
+      if (!testRange.toString().length) wasAtEndOfLine = true;
+    }
+  }
+
+  const allStruck = segments.every(seg => seg.nodes.every(n => isRteNodeFullyStruck(n, seg.block)));
+  let lastToggledNode = null;
+  let lastToggledBlock = null;
+
+  segments.forEach(seg => {
+    const { block, nodes } = seg;
+    lastToggledBlock = block;
+    if (allStruck) {
+      nodes.forEach(n => {
+        if (isRteStrikeNode(n)) {
+          unwrapRteStrikeDescendants(n);
+          const children = Array.from(n.childNodes);
+          children.forEach(ch => {
+            block.insertBefore(ch, n);
+            lastToggledNode = ch;
+          });
+          block.removeChild(n);
+        } else if (n.nodeType === 1) {
+          unwrapRteStrikeDescendants(n);
+          lastToggledNode = n;
+        } else {
+          lastToggledNode = n;
+        }
+      });
+    } else {
+      const sEl = document.createElement('s');
+      block.insertBefore(sEl, nodes[0]);
+      nodes.forEach(n => sEl.appendChild(n));
+      unwrapRteStrikeDescendants(sEl);
+      lastToggledNode = sEl;
+    }
+  });
+
+  try {
+    const r = document.createRange();
+    if (wasCollapsed) {
+      if (!allStruck && wasAtEndOfLine && lastToggledNode && lastToggledBlock && lastToggledNode.parentNode === lastToggledBlock) {
+        r.setStartAfter(lastToggledNode);
+        r.collapse(true);
+      } else if (origAnchorNode && editor.contains(origAnchorNode)) {
+        const maxOff = origAnchorNode.nodeType === 3 ? origAnchorNode.nodeValue.length : origAnchorNode.childNodes.length;
+        r.setStart(origAnchorNode, Math.min(origAnchorOffset, maxOff));
+        r.collapse(true);
+      } else if (lastToggledNode && editor.contains(lastToggledNode)) {
+        r.setStartAfter(lastToggledNode);
+        r.collapse(true);
+      }
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } else if (lastToggledNode && editor.contains(lastToggledNode)) {
+      r.setStartAfter(lastToggledNode);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  } catch (e) {}
+
+  return true;
 }
 
 function setRteActiveCell(editor, cell) {
@@ -6881,9 +7306,53 @@ function initRichEditorTableSupport(editorId) {
   editor.addEventListener('keyup', trackActiveCell);
   editor.addEventListener('click', trackActiveCell);
 
-  // Tab / Shift+Tab navigation inside table cells
+  // Keyboard shortcuts: nested bullets (Tab/Shift+Tab, Ctrl+]/[), complete line (Ctrl+Enter), strikethrough (Ctrl+Shift+X / Alt+Shift+5), and table Tab navigation
   editor.addEventListener('keydown', (e) => {
+    // Ctrl+Enter / Cmd+Enter: Toggle entire current line or bullet completed (strikethrough) without selection
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      rteToggleLineComplete(editor);
+      return;
+    }
+
+    // Ctrl+Shift+X / Cmd+Shift+X or Alt+Shift+5: Strikethrough formatting
+    if (
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key || '').toLowerCase() === 'x') ||
+      (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (e.code === 'Digit5' || e.key === '5' || e.key === '%'))
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.execCommand('strikeThrough', false, null);
+      return;
+    }
+
+    // Ctrl+] / Cmd+] (Indent) and Ctrl+[ / Cmd+[ (Outdent)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === ']' || e.code === 'BracketRight')) {
+      e.preventDefault();
+      e.stopPropagation();
+      rteIndentList(editor);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === '[' || e.code === 'BracketLeft')) {
+      e.preventDefault();
+      e.stopPropagation();
+      rteOutdentList(editor);
+      return;
+    }
+
     if (e.key !== 'Tab') return;
+
+    // If inside a list item, Tab / Shift+Tab indents / outdents nested bullets
+    const selLis = getRteSelectedListItems(editor);
+    if (selLis.length > 0) {
+      e.preventDefault();
+      if (e.shiftKey) rteOutdentList(editor);
+      else rteIndentList(editor);
+      return;
+    }
+
+    // Otherwise, Tab / Shift+Tab navigates table cells
     const cell = getRteActiveCell(editor);
     if (!cell) return;
     const table = cell.closest('table');
@@ -10981,6 +11450,13 @@ function openShortcutsModal() {
       <div class="shortcut-row"><span>Open this shortcuts help</span><kbd>?</kbd></div>
       <div class="shortcut-row"><span>Close any popup window</span><kbd>Esc</kbd></div>
     </div>
+    <p class="field-hint" style="margin:14px 0 8px;"><strong>Inside Rich Text Editors</strong> (Task, Subtask &amp; Note descriptions):</p>
+    <div>
+      <div class="shortcut-row"><span>Mark / unmark entire line completed (strikethrough)</span><span><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span></div>
+      <div class="shortcut-row"><span>Strikethrough selected text</span><span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>5</kbd></span></div>
+      <div class="shortcut-row"><span>Indent / nest bullet point</span><span><kbd>Tab</kbd> or <kbd>Ctrl</kbd>+<kbd>]</kbd></span></div>
+      <div class="shortcut-row"><span>Outdent bullet point</span><span><kbd>Shift</kbd>+<kbd>Tab</kbd> or <kbd>Ctrl</kbd>+<kbd>[</kbd></span></div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-primary btn-sm" onclick="closeModal()">Got it</button>
     </div>
@@ -11159,7 +11635,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.57';
+const CADENCE_VERSION = 'v1.58';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
