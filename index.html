@@ -694,6 +694,81 @@
     padding-left: 10px;
     border-left: 2px solid var(--border);
   }
+  .rte-editor code, .rte-rendered code, .note-body code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.84em;
+    background: var(--surface-2);
+    color: var(--primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .rte-editor pre, .rte-rendered pre, .note-body pre {
+    position: relative;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 8px 0;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 2;
+  }
+  .rte-editor pre[data-lang], .rte-rendered pre[data-lang], .note-body pre[data-lang] {
+    padding-top: 26px;
+  }
+  .rte-editor pre[data-lang]::before, .rte-rendered pre[data-lang]::before, .note-body pre[data-lang]::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 4px;
+    left: 10px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    pointer-events: none;
+    user-select: none;
+  }
+  .rte-editor pre code, .rte-rendered pre code, .note-body pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+    font-size: inherit;
+    display: block;
+    white-space: pre;
+  }
+  .rte-rendered pre, .note-body pre {
+    padding-right: 68px;
+  }
+  .rte-code-copy-btn {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    padding: 2px 7px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0.88;
+    transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .rte-code-copy-btn:hover {
+    opacity: 1;
+    border-color: var(--primary);
+    color: var(--primary);
+  }
   .rte-editor h3 { margin: 8px 0 4px; font-size: 1.05rem; }
   .rte-editor table, .rte-rendered table, .note-body table {
     width: 100%;
@@ -2450,7 +2525,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.58</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.59</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2487,7 +2562,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.58 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.59 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -2935,14 +3010,15 @@ function sanitizeNoteHtml(html) {
   div.innerHTML = html || '';
   const allowed = new Set([
     'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL', 'H3', 'H2', 'UL', 'OL', 'LI', 'P', 'BR', 'DIV', 'SPAN', 'BLOCKQUOTE',
+    'PRE', 'CODE',
     'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD'
   ]);
-  const dropCompletely = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'COLGROUP', 'COL', 'HEAD']);
+  const dropCompletely = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'COLGROUP', 'COL', 'HEAD', 'BUTTON']);
   function walk(node) {
     for (let i = node.childNodes.length - 1; i >= 0; i--) {
       const child = node.childNodes[i];
       if (child.nodeType === 1) {
-        if (dropCompletely.has(child.tagName)) {
+        if (dropCompletely.has(child.tagName) || (child.classList && child.classList.contains('rte-code-copy-btn'))) {
           node.removeChild(child);
         } else if (!allowed.has(child.tagName)) {
           const text = document.createTextNode(child.textContent);
@@ -2950,9 +3026,11 @@ function sanitizeNoteHtml(html) {
         } else {
           const keepColspan = (child.tagName === 'TD' || child.tagName === 'TH') ? parseInt(child.getAttribute('colspan'), 10) : NaN;
           const keepRowspan = (child.tagName === 'TD' || child.tagName === 'TH') ? parseInt(child.getAttribute('rowspan'), 10) : NaN;
+          const keepLang = child.tagName === 'PRE' ? String(child.getAttribute('data-lang') || '').trim().replace(/[^a-zA-Z0-9+#._-]/g, '').slice(0, 20) : '';
           while (child.attributes.length > 0) child.removeAttribute(child.attributes[0].name);
           if (keepColspan > 1 && keepColspan <= 50) child.setAttribute('colspan', String(keepColspan));
           if (keepRowspan > 1 && keepRowspan <= 200) child.setAttribute('rowspan', String(keepRowspan));
+          if (keepLang) child.setAttribute('data-lang', keepLang);
           walk(child);
         }
       }
@@ -2960,6 +3038,71 @@ function sanitizeNoteHtml(html) {
   }
   walk(div);
   return div.innerHTML;
+}
+
+function attachCodeCopyButtons(containerEl) {
+  if (!containerEl) return;
+  containerEl.querySelectorAll('pre').forEach(pre => {
+    if (pre.querySelector('.rte-code-copy-btn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'rte-code-copy-btn';
+    btn.setAttribute('onclick', 'copyCodeBlock(event, this)');
+    btn.setAttribute('title', 'Copy code snippet');
+    btn.textContent = '📋 Copy';
+    pre.appendChild(btn);
+  });
+}
+
+function renderRichHtmlForDisplay(html) {
+  const sanitized = sanitizeNoteHtml(html);
+  if (!sanitized || !/<pre[\s>]/i.test(sanitized)) return sanitized;
+  const container = document.createElement('div');
+  container.innerHTML = sanitized;
+  attachCodeCopyButtons(container);
+  return container.innerHTML;
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  ta.remove();
+}
+
+function copyCodeBlock(event, btn) {
+  if (event) { event.preventDefault(); event.stopPropagation(); }
+  const pre = btn && btn.closest('pre');
+  if (!pre) return;
+  const codeEl = pre.querySelector('code');
+  let text = '';
+  if (codeEl) {
+    text = codeEl.textContent || '';
+  } else {
+    const clone = pre.cloneNode(true);
+    clone.querySelectorAll('.rte-code-copy-btn').forEach(b => b.remove());
+    text = clone.textContent || '';
+  }
+  text = text.replace(/\n$/, '');
+  const done = () => {
+    const prev = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = prev; }, 1400);
+    showToast('Code snippet copied');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      fallbackCopyText(text);
+      done();
+    });
+  } else {
+    fallbackCopyText(text);
+    done();
+  }
 }
 
 function getProject(id) { return state.projects.find(p => p.id === id); }
@@ -4799,7 +4942,7 @@ function renderTaskList(tasks) {
             ${t.recurrence && t.recurrence !== 'none' ? `<span class="badge b-todo" title="Automatically creates next occurrence when marked Done">🔁 ${esc(t.recurrence)}</span>` : ''}
             ${blocker ? `<span class="badge b-warn" title="This task is blocked until '${esc(blocker.title)}' is marked Done">⚠️ Blocked by: ${esc(blocker.title)}</span>` : ''}
           </div>
-          ${t.description ? `<div class="rte-rendered" style="font-size:0.84rem;color:var(--text-muted);margin-top:5px;">${sanitizeNoteHtml(t.description)}</div>` : ''}
+          ${t.description ? `<div class="rte-rendered" style="font-size:0.84rem;color:var(--text-muted);margin-top:5px;">${renderRichHtmlForDisplay(t.description)}</div>` : ''}
           <div class="task-meta">
             <span>📁 ${esc(proj ? proj.name : 'Unknown')}${stage ? ` › ${esc(stage.name)}` : ''}</span>
             ${t.dueDate ? `<span>📅 Due: <strong>${esc(t.dueDate)}</strong></span>` : ''}
@@ -4838,7 +4981,7 @@ function renderTaskList(tasks) {
                   <div class="subtask-left">
                     <input type="checkbox" ${sub.status === 'Done' ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtaskDone('${t.id}','${sub.id}')" />
                     <span class="${sub.status === 'Done' ? 'task-title done' : ''}" style="font-weight:600;font-size:0.84rem;">${esc(sub.title)}</span>
-                    ${sub.description ? `<span class="rte-rendered" style="font-size:0.78rem;color:var(--text-muted);">${sanitizeNoteHtml(sub.description)}</span>` : ''}
+                    ${sub.description ? `<span class="rte-rendered" style="font-size:0.78rem;color:var(--text-muted);">${renderRichHtmlForDisplay(sub.description)}</span>` : ''}
                   </div>
                   <div class="subtask-footer">
                     <div class="subtask-actions-left" onclick="event.stopPropagation()">
@@ -5025,7 +5168,7 @@ function renderTodoView(tasks) {
             <span>📝 Description</span>
           </div>
           ${t.description
-            ? `<div class="rte-rendered" style="font-size:0.85rem;color:var(--text);">${sanitizeNoteHtml(t.description)}</div>`
+            ? `<div class="rte-rendered" style="font-size:0.85rem;color:var(--text);">${renderRichHtmlForDisplay(t.description)}</div>`
             : `<div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">No description yet. Click to add details.</div>`}
         </div>
 
@@ -5054,7 +5197,7 @@ function renderTodoView(tasks) {
                       title="${sDone ? 'Mark To do' : 'Mark Done'}">✓</button>
                     <div style="flex:1;min-width:0;">
                       <div style="font-weight:600;${sDone ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(sub.title)}</div>
-                      ${sub.description ? `<div class="rte-rendered" style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">${sanitizeNoteHtml(sub.description)}</div>` : ''}
+                      ${sub.description ? `<div class="rte-rendered" style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">${renderRichHtmlForDisplay(sub.description)}</div>` : ''}
                       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;font-size:0.72rem;color:var(--text-muted);align-items:center;" onclick="event.stopPropagation()">
                         ${sub.assignee ? `<span class="badge b-assignee" style="font-size:0.68rem;">👤 ${esc(sub.assignee)}</span>` : ''}
                         ${sub.dueDate ? `<span style="${isSubtaskOverdue(sub, today) ? 'color:var(--danger);font-weight:700;' : ''}">${isSubtaskOverdue(sub, today) ? '🔥' : '📅'} ${esc(sub.dueDate)}</span>` : ''}
@@ -5387,7 +5530,7 @@ function openTaskModal(taskId = null, opts = {}) {
         <label>Description</label>
         ${renderRteToolbar('tDesc')}
         <div class="rte-editor desc-editor" id="tDesc" contenteditable="true" data-placeholder="Extra context or acceptance criteria...">${sanitizeNoteHtml(t?.description || '')}</div>
-        <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> (or <strong>Ctrl+] / [</strong>) indents &amp; outdents nested bullets • <strong>Ctrl+Enter</strong> marks/unmarks the entire line completed • <strong>Ctrl+Shift+X</strong> strikes selection • Paste formatted tables from Excel/Sheets.</div>
+        <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> nests bullets • <strong>Ctrl+Enter</strong> marks/unmarks line done • <strong>Ctrl+&#96; / Ctrl+E</strong> inline code • <strong>{ } Code</strong> or <code>&#96;&#96;&#96;</code> + Enter for code snippets (Shift+Enter to exit) • Paste formatted tables from Excel/Sheets.</div>
       </div>
 
       <div class="modal-subtask-grid-wrap">
@@ -5718,7 +5861,7 @@ function openSubtaskModal(taskId, subId = null) {
         <label>Description (optional)</label>
         ${renderRteToolbar('stDesc')}
         <div class="rte-editor desc-editor" id="stDesc" contenteditable="true" data-placeholder="Details or notes for this subtask...">${sanitizeNoteHtml(s?.description || '')}</div>
-        <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> nests bullets • <strong>Ctrl+Enter</strong> marks/unmarks entire line completed • <strong>Ctrl+Shift+X</strong> strikes selection.</div>
+        <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> nests bullets • <strong>Ctrl+Enter</strong> marks/unmarks line done • <strong>Ctrl+&#96;</strong> inline code • <code>&#96;&#96;&#96;</code> + Enter for code snippet.</div>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px;">
@@ -6239,7 +6382,10 @@ function extractHashtagsFromNote(note) {
   if (Array.isArray(note?.tags)) {
     note.tags.forEach(pushTag);
   }
-  const plainText = `${note?.title || ''} ${(note?.body || '').replace(/<[^>]+>/g, ' ')}`;
+  const bodyNoCode = (note?.body || '')
+    .replace(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi, ' ')
+    .replace(/<code\b[^>]*>[\s\S]*?<\/code>/gi, ' ');
+  const plainText = `${note?.title || ''} ${bodyNoCode.replace(/<[^>]+>/g, ' ')}`;
   const matches = plainText.match(/#[A-Za-z][A-Za-z0-9_-]{0,30}/g) || [];
   matches.forEach(pushTag);
   return tags;
@@ -6308,12 +6454,14 @@ function formatNoteBodyWithHashtags(html) {
       return;
     }
     if (node.nodeType === 1) {
+      if (node.tagName === 'PRE' || node.tagName === 'CODE' || (node.classList && node.classList.contains('rte-code-copy-btn'))) return;
       const children = Array.from(node.childNodes);
       children.forEach(walk);
     }
   }
 
   Array.from(container.childNodes).forEach(walk);
+  attachCodeCopyButtons(container);
   return container.innerHTML;
 }
 
@@ -6428,7 +6576,7 @@ function openNoteModal(noteId = null) {
           <label>Note Content</label>
           ${renderRteToolbar('nBody')}
           <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
-          <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> (or <strong>Ctrl+] / [</strong>) indents &amp; outdents nested bullets • <strong>Ctrl+Enter</strong> marks/unmarks the entire line completed • <strong>Ctrl+Shift+X</strong> strikes selection • Paste formatted tables from Excel/Sheets.</div>
+          <div class="field-hint">Tips: <strong>Tab / Shift+Tab</strong> nests bullets • <strong>Ctrl+Enter</strong> marks/unmarks line done • <strong>Ctrl+&#96; / Ctrl+E</strong> inline code • <strong>{ } Code</strong> or <code>&#96;&#96;&#96;</code> + Enter for code snippets (Shift+Enter to exit) • Paste formatted tables from Excel/Sheets.</div>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
@@ -6516,6 +6664,33 @@ function exportNoteToPdf(noteId = '') {
   .note-content ul ul ul { list-style-type: square; margin: 2px 0; }
   .note-content ol ol { list-style-type: lower-alpha; margin: 2px 0; }
   .note-content s, .note-content strike, .note-content del { text-decoration: line-through; color: #64748b; }
+  .note-content code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 9pt;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+  .note-content pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 8.8pt;
+    line-height: 1.45;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 3px solid #4f46e5;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 10px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .note-content pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+  }
   .note-content table {
     width: 100%;
     border-collapse: collapse;
@@ -6593,6 +6768,9 @@ function renderRteToolbar(editorId) {
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteIndentList('${editorId}')" title="Indent / Nest bullet (Tab or Ctrl+])">⇥</button>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteOutdentList('${editorId}')" title="Outdent bullet (Shift+Tab or Ctrl+[)">⇤</button>
       <span class="rte-sep"></span>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteToggleInlineCode('${editorId}')" title="Inline code (Ctrl+&#96; or Ctrl+E)"><code>&lt;&gt;</code></button>
+      <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteInsertCodeBlock('${editorId}')" title="Code snippet block (Ctrl+Shift+&#96; or Ctrl+Alt+C, or type &#96;&#96;&#96; + Enter)">{ } Code</button>
+      <span class="rte-sep"></span>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteInsertTable('${editorId}')" title="Insert a 3×3 table">⊞ Table</button>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','addRow')" title="Add a row below the current cell">+Row</button>
       <button type="button" class="btn btn-xs" onmousedown="event.preventDefault()" onclick="rteTableAction('${editorId}','addCol')" title="Add a column to the right of the current cell">+Col</button>
@@ -6618,10 +6796,12 @@ function formatRichEditor(editorId, type) {
   if (type === 'indent') rteIndentList(editorId);
   if (type === 'outdent') rteOutdentList(editorId);
   if (type === 'completeLine') rteToggleLineComplete(editorId);
+  if (type === 'inlineCode') rteToggleInlineCode(editorId);
+  if (type === 'codeBlock') rteInsertCodeBlock(editorId);
 }
 
 const RTE_BLOCK_TAGS = new Set(['LI', 'P', 'DIV', 'H2', 'H3', 'TD', 'TH', 'BLOCKQUOTE']);
-const RTE_LINE_BOUNDARY_TAGS = new Set(['BR', 'UL', 'OL', 'LI', 'P', 'DIV', 'H2', 'H3', 'TABLE', 'BLOCKQUOTE']);
+const RTE_LINE_BOUNDARY_TAGS = new Set(['BR', 'UL', 'OL', 'LI', 'P', 'DIV', 'H2', 'H3', 'TABLE', 'PRE', 'BLOCKQUOTE']);
 const RTE_STRIKE_TAGS = new Set(['S', 'STRIKE', 'DEL']);
 
 function isRteStrikeNode(node) {
@@ -7096,8 +7276,8 @@ function insertNodeAtRteCursor(editor, node) {
   if (!inserted) {
     editor.appendChild(node);
   }
-  // Ensure there is always a paragraph after a table so the user can type below it
-  if (node.tagName === 'TABLE' && (!node.nextSibling || (node.nextSibling.nodeType === 3 && !node.nextSibling.textContent.trim()))) {
+  // Ensure there is always a paragraph after a table or code block so the user can type below it
+  if ((node.tagName === 'TABLE' || node.tagName === 'PRE') && (!node.nextSibling || (node.nextSibling.nodeType === 3 && !node.nextSibling.textContent.trim()))) {
     const p = document.createElement('p');
     p.innerHTML = '<br>';
     node.parentNode.insertBefore(p, node.nextSibling);
@@ -7286,6 +7466,278 @@ function pasteMatrixIntoExistingTable(editor, startCell, matrix) {
   focusRteCell(editor, lastTouchedCell);
 }
 
+function getRteActivePre(editor) {
+  if (!editor) return null;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  let node = sel.anchorNode;
+  if (node && node.nodeType === 3) node = node.parentElement;
+  if (!node || !editor.contains(node)) return null;
+  const pre = node.closest('pre');
+  return (pre && editor.contains(pre)) ? pre : null;
+}
+
+function getRteActiveInlineCode(editor) {
+  if (!editor) return null;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  let node = sel.anchorNode;
+  if (node && node.nodeType === 3) node = node.parentElement;
+  if (!node || !editor.contains(node)) return null;
+  const code = node.closest('code');
+  if (!code || !editor.contains(code) || code.closest('pre')) return null;
+  return code;
+}
+
+function ensureRtePreCodeNode(pre) {
+  if (!pre) return null;
+  let code = pre.querySelector('code');
+  if (!code) {
+    code = document.createElement('code');
+    code.textContent = pre.textContent || '';
+    pre.innerHTML = '';
+    pre.appendChild(code);
+  }
+  return code;
+}
+
+function extractPlainTextFromRange(range) {
+  if (!range) return '';
+  const frag = range.cloneContents();
+  const wrap = document.createElement('div');
+  wrap.appendChild(frag);
+  const blockTags = new Set(['DIV', 'P', 'LI', 'H2', 'H3', 'TR', 'BLOCKQUOTE', 'PRE']);
+  let out = '';
+  function walk(node) {
+    if (node.nodeType === 3) {
+      out += node.nodeValue || '';
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    if (node.tagName === 'BR') {
+      out += '\n';
+      return;
+    }
+    const isBlock = blockTags.has(node.tagName);
+    if (isBlock && out.length > 0 && !out.endsWith('\n')) out += '\n';
+    Array.from(node.childNodes).forEach(walk);
+    if (isBlock && !out.endsWith('\n')) out += '\n';
+  }
+  Array.from(wrap.childNodes).forEach(walk);
+  return out.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n$/, '');
+}
+
+function getCaretOffsetInCode(codeEl, range) {
+  const preRange = document.createRange();
+  preRange.selectNodeContents(codeEl);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  return preRange.toString().length;
+}
+
+function setCaretOffsetInCode(codeEl, offset) {
+  const text = codeEl.textContent || '';
+  const safeOffset = Math.max(0, Math.min(offset, text.length));
+  if (!codeEl.firstChild || codeEl.childNodes.length !== 1 || codeEl.firstChild.nodeType !== 3) {
+    codeEl.textContent = text;
+  }
+  let textNode = codeEl.firstChild;
+  if (!textNode) {
+    textNode = document.createTextNode('');
+    codeEl.appendChild(textNode);
+  }
+  const r = document.createRange();
+  r.setStart(textNode, safeOffset);
+  r.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+function insertPlainTextIntoPreCode(pre, textToInsert) {
+  const code = ensureRtePreCodeNode(pre);
+  if (!code) return;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (!pre.contains(range.commonAncestorContainer)) return;
+
+  const startOff = getCaretOffsetInCode(code, range);
+  const endRange = document.createRange();
+  endRange.selectNodeContents(code);
+  endRange.setEnd(range.endContainer, range.endOffset);
+  const endOff = endRange.toString().length;
+
+  const fullText = code.textContent || '';
+  const cleanInsert = String(textToInsert || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  let nextText = fullText.slice(0, startOff) + cleanInsert + fullText.slice(endOff);
+  let nextCaret = startOff + cleanInsert.length;
+
+  // Ensure a trailing newline at the very end of a <pre> visibly shows the new blank line
+  if (cleanInsert === '\n' && nextCaret === nextText.length && !nextText.endsWith('\n\n')) {
+    nextText += '\n';
+  }
+  code.textContent = nextText;
+  setCaretOffsetInCode(code, nextCaret);
+}
+
+function exitRteCodeBlock(editor, pre) {
+  if (!editor || !pre || !pre.parentNode) return;
+  let next = pre.nextSibling;
+  while (next && next.nodeType === 3 && !next.textContent.trim()) {
+    next = next.nextSibling;
+  }
+  if (!next || next.nodeType === 3) {
+    const p = document.createElement('p');
+    p.innerHTML = '<br>';
+    pre.parentNode.insertBefore(p, pre.nextSibling);
+    next = p;
+  }
+  const r = document.createRange();
+  r.setStart(next, 0);
+  r.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+function rteToggleInlineCode(editorId) {
+  const editor = typeof editorId === 'string' ? document.getElementById(editorId) : editorId;
+  if (!editor) return;
+  editor.focus();
+  if (getRteActivePre(editor)) return;
+
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return;
+
+  const activeCode = getRteActiveInlineCode(editor);
+  if (activeCode) {
+    if (sel.isCollapsed) {
+      // If caret is at the very end of an inline <code>, step out so the user can continue typing normal text
+      const tailRange = document.createRange();
+      tailRange.setStart(range.endContainer, range.endOffset);
+      tailRange.setEndAfter(activeCode);
+      if (!tailRange.toString().length && activeCode.textContent.trim()) {
+        const space = document.createTextNode('\u00A0');
+        activeCode.parentNode.insertBefore(space, activeCode.nextSibling);
+        const r = document.createRange();
+        r.setStart(space, 1);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+        return;
+      }
+    }
+    // Otherwise unwrap the inline <code> element
+    const parent = activeCode.parentNode;
+    const textNode = document.createTextNode(activeCode.textContent || '');
+    parent.replaceChild(textNode, activeCode);
+    const r = document.createRange();
+    r.selectNodeContents(textNode);
+    if (sel.isCollapsed) r.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return;
+  }
+
+  if (sel.isCollapsed) {
+    const codeEl = document.createElement('code');
+    codeEl.textContent = 'code';
+    range.insertNode(codeEl);
+    const r = document.createRange();
+    r.selectNodeContents(codeEl);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return;
+  }
+
+  const selectedText = extractPlainTextFromRange(range);
+  if (selectedText.includes('\n')) {
+    rteInsertCodeBlock(editor);
+    return;
+  }
+  range.deleteContents();
+  const codeEl = document.createElement('code');
+  codeEl.textContent = selectedText;
+  range.insertNode(codeEl);
+  const r = document.createRange();
+  r.setStartAfter(codeEl);
+  r.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+function rteInsertCodeBlock(editorId, lang = '') {
+  const editor = typeof editorId === 'string' ? document.getElementById(editorId) : editorId;
+  if (!editor) return;
+  editor.focus();
+
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return;
+
+  // If already inside a <pre>, toggle it back into normal paragraph lines
+  const existingPre = getRteActivePre(editor);
+  if (existingPre) {
+    const rawText = (existingPre.querySelector('code')?.textContent ?? existingPre.textContent ?? '').replace(/\n$/, '');
+    const lines = rawText ? rawText.split('\n') : [''];
+    const frag = document.createDocumentFragment();
+    let lastDiv = null;
+    lines.forEach(line => {
+      const div = document.createElement('div');
+      if (line) div.textContent = line;
+      else div.innerHTML = '<br>';
+      frag.appendChild(div);
+      lastDiv = div;
+    });
+    existingPre.parentNode.replaceChild(frag, existingPre);
+    if (lastDiv) {
+      const r = document.createRange();
+      r.selectNodeContents(lastDiv);
+      r.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    return;
+  }
+
+  const cleanLang = String(lang || '').trim().replace(/[^a-zA-Z0-9+#._-]/g, '').slice(0, 20);
+  const pre = document.createElement('pre');
+  if (cleanLang) pre.setAttribute('data-lang', cleanLang);
+  const code = document.createElement('code');
+
+  let initialText = '';
+  if (!sel.isCollapsed) {
+    initialText = extractPlainTextFromRange(range);
+    range.deleteContents();
+  }
+  code.textContent = initialText || '\n';
+  pre.appendChild(code);
+
+  // If inside an empty direct child block (e.g. empty <p> or <div>), replace that empty block cleanly
+  let anchorBlock = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
+  if (
+    anchorBlock &&
+    anchorBlock !== editor &&
+    anchorBlock.parentElement === editor &&
+    (anchorBlock.tagName === 'P' || anchorBlock.tagName === 'DIV') &&
+    !(anchorBlock.textContent || '').trim()
+  ) {
+    editor.replaceChild(pre, anchorBlock);
+    if (!pre.nextSibling || (pre.nextSibling.nodeType === 3 && !pre.nextSibling.textContent.trim())) {
+      const p = document.createElement('p');
+      p.innerHTML = '<br>';
+      editor.insertBefore(p, pre.nextSibling);
+    }
+  } else {
+    insertNodeAtRteCursor(editor, pre);
+  }
+
+  setCaretOffsetInCode(code, initialText ? initialText.length : 0);
+}
+
 function initRichEditorTableSupport(editorId) {
   const editor = document.getElementById(editorId);
   if (!editor || editor.dataset.rteTableInit === '1') return;
@@ -7306,8 +7758,177 @@ function initRichEditorTableSupport(editorId) {
   editor.addEventListener('keyup', trackActiveCell);
   editor.addEventListener('click', trackActiveCell);
 
-  // Keyboard shortcuts: nested bullets (Tab/Shift+Tab, Ctrl+]/[), complete line (Ctrl+Enter), strikethrough (Ctrl+Shift+X / Alt+Shift+5), and table Tab navigation
+  // Keyboard shortcuts: code snippets, nested bullets (Tab/Shift+Tab, Ctrl+]/[), complete line (Ctrl+Enter), strikethrough (Ctrl+Shift+X / Alt+Shift+5), and table Tab navigation
   editor.addEventListener('keydown', (e) => {
+    const activePre = getRteActivePre(editor);
+
+    // Special keyboard ergonomics when editing inside a <pre><code> snippet block
+    if (activePre) {
+      const code = ensureRtePreCodeNode(activePre);
+
+      // Ctrl+A / Cmd+A selects only the code block first
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key || '').toLowerCase() === 'a') {
+        const sel = window.getSelection();
+        const curText = code.textContent || '';
+        if (sel && sel.toString().length < curText.length) {
+          e.preventDefault();
+          const r = document.createRange();
+          r.selectNodeContents(code);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          return;
+        }
+      }
+
+      // Shift+Enter, Alt+Enter, or Ctrl+Enter exits the code block to the line below
+      if (e.key === 'Enter' && (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        exitRteCodeBlock(editor, activePre);
+        return;
+      }
+
+      // Normal Enter inside code block: double-Enter at the end exits cleanly, otherwise inserts a real newline
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const range = sel.getRangeAt(0);
+        const fullText = code.textContent || '';
+        const caretOff = getCaretOffsetInCode(code, range);
+        const before = fullText.slice(0, caretOff);
+        const after = fullText.slice(caretOff);
+
+        if (sel.isCollapsed && !after.replace(/\n/g, '') && (before.endsWith('\n\n') || (!before.trim() && fullText === '\n'))) {
+          code.textContent = before.replace(/\n+$/, '');
+          if (!code.textContent) {
+            activePre.remove();
+            const p = document.createElement('p');
+            p.innerHTML = '<br>';
+            editor.appendChild(p);
+            const r = document.createRange();
+            r.setStart(p, 0);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          } else {
+            exitRteCodeBlock(editor, activePre);
+          }
+          return;
+        }
+        insertPlainTextIntoPreCode(activePre, '\n');
+        return;
+      }
+
+      // Tab / Shift+Tab inside code block indents / outdents by 2 spaces
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.shiftKey) {
+          insertPlainTextIntoPreCode(activePre, '  ');
+        } else {
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0) return;
+          const range = sel.getRangeAt(0);
+          const fullText = code.textContent || '';
+          const caretOff = getCaretOffsetInCode(code, range);
+          const lineStart = fullText.lastIndexOf('\n', Math.max(0, caretOff - 1)) + 1;
+          const linePrefix = fullText.slice(lineStart, lineStart + 2);
+          let removeCount = 0;
+          if (linePrefix === '  ') removeCount = 2;
+          else if (linePrefix.startsWith(' ') || linePrefix.startsWith('\t')) removeCount = 1;
+          if (removeCount > 0) {
+            code.textContent = fullText.slice(0, lineStart) + fullText.slice(lineStart + removeCount);
+            setCaretOffsetInCode(code, Math.max(lineStart, caretOff - removeCount));
+          }
+        }
+        return;
+      }
+
+      // Backspace on an empty code block removes it cleanly
+      if (e.key === 'Backspace') {
+        const sel = window.getSelection();
+        if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+          const fullText = code.textContent || '';
+          const caretOff = getCaretOffsetInCode(code, sel.getRangeAt(0));
+          if (caretOff === 0 && !fullText.trim()) {
+            e.preventDefault();
+            e.stopPropagation();
+            const p = document.createElement('p');
+            p.innerHTML = '<br>';
+            activePre.parentNode.replaceChild(p, activePre);
+            const r = document.createRange();
+            r.setStart(p, 0);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+            return;
+          }
+        }
+      }
+
+      // Ctrl+Shift+` or Ctrl+Alt+C toggles back out of code block
+      if (
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.code === 'Backquote' || e.key === '`' || e.key === '~')) ||
+        ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key || '').toLowerCase() === 'c')
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        rteInsertCodeBlock(editor);
+        return;
+      }
+      return;
+    }
+
+    // Markdown triple-backtick trigger: typing ``` or ```sql then pressing Enter creates a code block
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+        const seg = getRteLineSegmentAtPoint(editor, sel.anchorNode, sel.anchorOffset);
+        if (seg) {
+          const lineText = seg.nodes.map(n => n.textContent || '').join('').trim();
+          const fenceMatch = lineText.match(/^```([a-zA-Z0-9+#._-]{0,20})?$/);
+          if (fenceMatch) {
+            e.preventDefault();
+            e.stopPropagation();
+            const lang = fenceMatch[1] || '';
+            const firstNode = seg.nodes[0];
+            const r = document.createRange();
+            r.setStartBefore(firstNode);
+            r.setEndAfter(seg.nodes[seg.nodes.length - 1]);
+            r.deleteContents();
+            sel.removeAllRanges();
+            sel.addRange(r);
+            rteInsertCodeBlock(editor, lang);
+            return;
+          }
+        }
+      }
+    }
+
+    // Ctrl+` / Cmd+` or Ctrl+E / Cmd+E: Inline code
+    if (
+      (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
+      (e.code === 'Backquote' || e.key === '`' || (e.key || '').toLowerCase() === 'e')
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      rteToggleInlineCode(editor);
+      return;
+    }
+
+    // Ctrl+Shift+` / Cmd+Shift+` or Ctrl+Alt+C: Insert code snippet block
+    if (
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.code === 'Backquote' || e.key === '`' || e.key === '~')) ||
+      ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key || '').toLowerCase() === 'c')
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      rteInsertCodeBlock(editor);
+      return;
+    }
+
     // Ctrl+Enter / Cmd+Enter: Toggle entire current line or bullet completed (strikethrough) without selection
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === 'Enter') {
       e.preventDefault();
@@ -7372,10 +7993,20 @@ function initRichEditorTableSupport(editorId) {
     }
   });
 
-  // Smart paste: only create/paste tables when the source clipboard includes HTML <table> formatting
+  // Smart paste: plain-text inside code blocks, and HTML <table> formatting only when present in clipboard
   editor.addEventListener('paste', (e) => {
     const cd = e.clipboardData || window.clipboardData;
     if (!cd) return;
+
+    // Inside a code snippet block, always paste clean plain text so IDE/browser formatting never corrupts code
+    const activePre = getRteActivePre(editor);
+    if (activePre) {
+      e.preventDefault();
+      const plainText = cd.getData('text/plain') || '';
+      insertPlainTextIntoPreCode(activePre, plainText);
+      return;
+    }
+
     const htmlData = cd.getData('text/html') || '';
     const activeCell = getRteActiveCell(editor);
 
@@ -11456,6 +12087,9 @@ function openShortcutsModal() {
       <div class="shortcut-row"><span>Strikethrough selected text</span><span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>5</kbd></span></div>
       <div class="shortcut-row"><span>Indent / nest bullet point</span><span><kbd>Tab</kbd> or <kbd>Ctrl</kbd>+<kbd>]</kbd></span></div>
       <div class="shortcut-row"><span>Outdent bullet point</span><span><kbd>Shift</kbd>+<kbd>Tab</kbd> or <kbd>Ctrl</kbd>+<kbd>[</kbd></span></div>
+      <div class="shortcut-row"><span>Inline code</span><span><kbd>Ctrl</kbd>+<kbd>&#96;</kbd> or <kbd>Ctrl</kbd>+<kbd>E</kbd></span></div>
+      <div class="shortcut-row"><span>Insert / toggle code snippet block</span><span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>&#96;</kbd>, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd>, or <kbd>&#96;&#96;&#96;</kbd> + <kbd>Enter</kbd></span></div>
+      <div class="shortcut-row"><span>Exit code snippet block</span><span><kbd>Shift</kbd>+<kbd>Enter</kbd> or double <kbd>Enter</kbd> at end</span></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary btn-sm" onclick="closeModal()">Got it</button>
@@ -11635,7 +12269,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.58';
+const CADENCE_VERSION = 'v1.59';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
