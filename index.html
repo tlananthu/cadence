@@ -2429,7 +2429,7 @@
     <div class="brand">
       <div class="brand-icon">C</div>
       <span>Cadence</span>
-      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.56</span>
+      <span class="badge b-cat" id="cadenceVersionBadge" style="font-size:0.68rem;padding:2px 7px;" title="App Version">v1.57</span>
     </div>
     <button class="btn btn-xs btn-ghost" id="themeBtn" onclick="toggleTheme()" title="Switch between Light and Dark mode">🌙</button>
   </div>
@@ -2466,7 +2466,7 @@
 
   <div class="sidebar-footer">
     <div class="storage-notice">
-      <strong id="cadenceFooterVersion">Cadence v1.56 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
+      <strong id="cadenceFooterVersion">Cadence v1.57 • Local Storage:</strong> Your data lives <strong>only in this browser</strong>. Export a backup file regularly to save or move it.
     </div>
     <div class="sidebar-actions">
       <button class="btn btn-sm" onclick="exportBackup()" title="Download a JSON backup of all your projects, tasks, notes, and time">⬇️ Export</button>
@@ -5366,7 +5366,7 @@ function openTaskModal(taskId = null, opts = {}) {
         <label>Description</label>
         ${renderRteToolbar('tDesc')}
         <div class="rte-editor desc-editor" id="tDesc" contenteditable="true" data-placeholder="Extra context or acceptance criteria...">${sanitizeNoteHtml(t?.description || '')}</div>
-        <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
+        <div class="field-hint">Supports tables: paste formatted tables from Excel, Google Sheets, Word, or web pages, or use the table buttons above (Tab moves across cells).</div>
       </div>
 
       <div class="modal-subtask-grid-wrap">
@@ -6407,7 +6407,7 @@ function openNoteModal(noteId = null) {
           <label>Note Content</label>
           ${renderRteToolbar('nBody')}
           <div class="rte-editor" id="nBody" contenteditable="true">${sanitizeNoteHtml(n?.body || '')}</div>
-          <div class="field-hint">Supports tables: paste directly from Excel, Google Sheets, or Markdown, or use the table buttons above (Tab moves across cells).</div>
+          <div class="field-hint">Supports tables: paste formatted tables from Excel, Google Sheets, Word, or web pages, or use the table buttons above (Tab moves across cells).</div>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
@@ -6795,62 +6795,6 @@ function rteTableAction(editorId, action) {
   }
 }
 
-function parsePlainTabularText(text) {
-  if (!text) return null;
-  const trimmed = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-  if (!trimmed) return null;
-  const lines = trimmed.split('\n');
-
-  // 1. Check for Tab-Separated Values (Excel / Google Sheets / SQL / TSV)
-  const hasTabs = lines.some(l => l.includes('\t'));
-  if (hasTabs) {
-    const rows = [];
-    let currentRow = [];
-    let currentCell = '';
-    let inQuotes = false;
-    for (let i = 0; i < trimmed.length; i++) {
-      const ch = trimmed[i];
-      if (ch === '"') {
-        if (inQuotes && trimmed[i + 1] === '"') {
-          currentCell += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === '\t' && !inQuotes) {
-        currentRow.push(currentCell);
-        currentCell = '';
-      } else if (ch === '\n' && !inQuotes) {
-        currentRow.push(currentCell);
-        rows.push(currentRow);
-        currentRow = [];
-        currentCell = '';
-      } else {
-        currentCell += ch;
-      }
-    }
-    currentRow.push(currentCell);
-    rows.push(currentRow);
-    const maxCols = Math.max(...rows.map(r => r.length));
-    if (maxCols >= 2) return rows;
-  }
-
-  // 2. Check for Markdown pipe tables (| Col A | Col B | / | --- | --- |)
-  if (lines.length >= 2 && lines[0].includes('|') && /^\s*\|?[\s:-]+\|[\s|:-]*$/.test(lines[1])) {
-    const splitPipe = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
-    const header = splitPipe(lines[0]);
-    if (header.length >= 2) {
-      const rows = [header];
-      for (let i = 2; i < lines.length; i++) {
-        if (!lines[i].trim() || !lines[i].includes('|')) break;
-        rows.push(splitPipe(lines[i]));
-      }
-      return rows;
-    }
-  }
-  return null;
-}
-
 function extractMatrixFromHtmlTable(tableEl) {
   const rows = [];
   Array.from(tableEl.querySelectorAll('tr')).forEach(tr => {
@@ -6959,15 +6903,13 @@ function initRichEditorTableSupport(editorId) {
     }
   });
 
-  // Smart paste for HTML tables (Excel, Sheets, web) and plain-text TSV / Markdown tables
+  // Smart paste: only create/paste tables when the source clipboard includes HTML <table> formatting
   editor.addEventListener('paste', (e) => {
     const cd = e.clipboardData || window.clipboardData;
     if (!cd) return;
     const htmlData = cd.getData('text/html') || '';
-    const plainData = cd.getData('text/plain') || '';
     const activeCell = getRteActiveCell(editor);
 
-    // 1. HTML table on clipboard
     if (/<table[\s>]/i.test(htmlData)) {
       const tmp = document.createElement('div');
       tmp.innerHTML = sanitizeNoteHtml(htmlData);
@@ -6977,30 +6919,13 @@ function initRichEditorTableSupport(editorId) {
         if (activeCell) {
           const matrix = extractMatrixFromHtmlTable(pastedTable);
           pasteMatrixIntoExistingTable(editor, activeCell, matrix);
-          showToast('Pasted tabular data into table');
+          showToast('Pasted table data into table');
         } else {
           insertNodeAtRteCursor(editor, pastedTable);
           const firstCell = pastedTable.querySelector('th, td');
           if (firstCell) focusRteCell(editor, firstCell);
           showToast('Table pasted');
         }
-        return;
-      }
-    }
-
-    // 2. Plain-text TSV or Markdown pipe table
-    const matrix = parsePlainTabularText(plainData);
-    if (matrix && matrix.length > 0) {
-      e.preventDefault();
-      if (activeCell) {
-        pasteMatrixIntoExistingTable(editor, activeCell, matrix);
-        showToast('Pasted tabular data into table');
-      } else {
-        const table = buildHtmlTableFromMatrix(matrix, true);
-        insertNodeAtRteCursor(editor, table);
-        const firstCell = table.querySelector('th, td');
-        if (firstCell) focusRteCell(editor, firstCell);
-        showToast('Tabular data pasted as table');
       }
     }
   });
@@ -11234,7 +11159,7 @@ function saveSettingsForm(e, silent = false) {
 
 // ===================== INIT =====================
 
-const CADENCE_VERSION = 'v1.56';
+const CADENCE_VERSION = 'v1.57';
 function getCadenceVersion() {
   return CADENCE_VERSION;
 }
